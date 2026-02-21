@@ -60,7 +60,7 @@ setup: init sync secrets link
 
 clean:
 	@echo "==> Cleaning up components (CAUTION)..."
-	@if [ -z "$(COMPONENTS_DIR)" ] || [ "$(COMPONENTS_DIR)" = "/" ]; then \
+	@if [ -z "$(COMPONENTS_DIR)" ] || [ "$(COMPONENTS_DIR)" = "/" ] || [ "$(COMPONENTS_DIR)" = "." ] || [ "$(COMPONENTS_DIR)" = ".." ]; then \
 		echo "ERROR: unsafe COMPONENTS_DIR='$(COMPONENTS_DIR)'"; \
 		exit 1; \
 	elif [ ! -d "$(COMPONENTS_DIR)" ]; then \
