@@ -56,4 +56,11 @@ setup: init sync secrets link
 
 clean:
 	@echo "==> Cleaning up components (CAUTION)..."
-	rm -rf $(COMPONENTS_DIR)/*
+	@if [ -z "$(COMPONENTS_DIR)" ] || [ "$(COMPONENTS_DIR)" = "/" ]; then \
+		echo "ERROR: unsafe COMPONENTS_DIR='$(COMPONENTS_DIR)'"; \
+		exit 1; \
+	elif [ ! -d "$(COMPONENTS_DIR)" ]; then \
+		echo "==> Skip clean: directory '$(COMPONENTS_DIR)' not found."; \
+	else \
+		rm -rf "$(COMPONENTS_DIR)"/*; \
+	fi

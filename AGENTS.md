@@ -150,7 +150,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE}")/.." && pwd)"
 
 ## FORBIDDEN OPERATIONS
 
-Per `opencode.jsonc` (if present), these operations are blocked:
+If `opencode.jsonc` exists, this section applies as **AI agent runtime constraints**.
+These restrictions are not global project rules for humans: legitimate operations by developers, CI, or repository automation (for example, controlled `sudo`/`rm` usage in `Makefile`) can still be valid.
+If exceptions are allowed for agent execution, they must be explicitly declared in `opencode.jsonc`.
+
+Per `opencode.jsonc` (when present), these operations are blocked for agent execution unless explicitly allowed:
 - `rm` (destructive file operations)
 - `ssh` (remote access)
 - `sudo` (privilege escalation)
