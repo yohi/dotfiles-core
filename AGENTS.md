@@ -142,7 +142,7 @@ Each component's scripts must resolve paths dynamically:
 
 ```bash
 # Correct: Dynamic resolution
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Wrong: Hardcoded paths
 # source ~/dotfiles/components/dotfiles-zsh/config.sh
@@ -185,11 +185,17 @@ Per `opencode.jsonc` (when present), these operations are blocked for agent exec
 ### Debugging Stow Issues
 
 ```bash
-# Dry-run to see what would be linked
+# Dry-run (explicit single-component form)
 stow --no --target=$HOME --dir=components/dotfiles-zsh .
 
-# Restow (unlink and relink)
+# Dry-run (Makefile loop form)
+stow --no --target=$HOME --dir=$(COMPONENTS_DIR) $$name
+
+# Restow (explicit single-component form)
 stow --restow --target=$HOME --dir=components/dotfiles-zsh .
+
+# Restow (Makefile loop form)
+stow --restow --target=$HOME --dir=$(COMPONENTS_DIR) $$name
 ```
 
 ### Checking Component Status

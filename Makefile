@@ -20,7 +20,7 @@ init:
 	sudo apt-get update && sudo apt-get install -y python3-pip stow jq curl
 	pip3 install --user vcstool
 	mkdir -p $(COMPONENTS_DIR)
-	vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
 
 sync:
 	@echo "==> Syncing all components..."
@@ -38,8 +38,9 @@ link:
 secrets:
 	@echo "==> Resolving secrets via Bitwarden CLI..."
 	# ここに bw login / unlock などのロジックを実装予定
-	@if ! command -v bw > /dev/null; then 
-		echo "Bitwarden CLI (bw) not found. Please install it."; 
+	@if ! command -v bw > /dev/null; then \
+		echo "Bitwarden CLI (bw) not found. Please install it." >&2; \
+		exit 1; \
 	fi
 
 setup: init sync secrets link
