@@ -1,0 +1,29 @@
+repositories:
+  components/dotfiles-zsh:
+    type: git
+    url: git@github.com:yohi/dotfiles-zsh.git
+    version: master
+  components/dotfiles-vim:
+    type: git
+    url: git@github.com:yohi/dotfiles-vim.git
+    version: master
+  components/dotfiles-git:
+    type: git
+    url: git@github.com:yohi/dotfiles-git.git
+    version: master
+  components/dotfiles-term:
+    type: git
+    url: git@github.com:yohi/dotfiles-term.git
+    version: master
+  components/dotfiles-ide:
+    type: git
+    url: git@github.com:yohi/dotfiles-ide.git
+    version: master
+  components/dotfiles-ai:
+    type: git
+    url: git@github.com:yohi/dotfiles-ai.git
+    version: master
+  components/dotfiles-gnome:
+    type: git
+    url: git@github.com:yohi/dotfiles-gnome.git
+    version: master

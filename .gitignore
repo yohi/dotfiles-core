@@ -1,0 +1,10 @@
+# Components (Managed by vcstool)
+components/
+
+# Local secrets & temp files
+.bw_session
+*.log
+.tmp/
+
+# OS files
+.DS_Store
