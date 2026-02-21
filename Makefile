@@ -31,10 +31,11 @@ sync:
 
 link:
 	@echo "==> Linking components with GNU Stow..."
-	@for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do 
-		name=$$(basename $$dir); 
-		echo "Stowing $$name..."; 
-		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; 
+	@for dir in $(COMPONENTS_DIR)/*; do \
+		[ -d "$$dir" ] || continue; \
+		name=$$(basename "$$dir"); \
+		echo "Stowing $$name..."; \
+		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; \
 	done
 
 secrets:
