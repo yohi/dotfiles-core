@@ -14,6 +14,7 @@ help:
 	@echo "  link     Apply symbolic links using GNU Stow"
 	@echo "  secrets  Fetch credentials from Bitwarden"
 	@echo "  setup    Run full setup sequence including component delegation"
+	@echo "  clean    Remove generated files and reset state"
 
 init:
 	@echo "==> Initializing dependencies..."
@@ -24,8 +25,9 @@ init:
 
 sync:
 	@echo "==> Syncing all components..."
-	vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
-	vcs pull $(COMPONENTS_DIR)
+	mkdir -p $(COMPONENTS_DIR)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
 link:
 	@echo "==> Linking components with GNU Stow..."
