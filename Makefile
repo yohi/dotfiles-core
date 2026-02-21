@@ -48,13 +48,13 @@ secrets:
 
 setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
-	@for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do 
-		if [ -f "$$dir/Makefile" ]; then 
-			echo "Found Makefile in $$dir, checking for setup target..."; 
-			if grep -q "^setup:" "$$dir/Makefile"; then 
-				$(MAKE) -C "$$dir" setup; 
-			fi; 
-		fi; 
+	@for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
+		if [ -f "$$dir/Makefile" ]; then \
+			echo "Found Makefile in $$dir, checking for setup target..."; \
+			if grep -q "^setup:" "$$dir/Makefile"; then \
+				$(MAKE) -C "$$dir" setup; \
+			fi; \
+		fi; \
 	done
 	@echo "==> Setup Complete!"
 
