@@ -27,3 +27,7 @@ repositories:
     type: git
     url: git@github.com:yohi/dotfiles-gnome.git
     version: master
+  components/dotfiles-system:
+    type: git
+    url: git@github.com:yohi/dotfiles-system.git
+    version: master
