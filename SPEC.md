@@ -60,7 +60,7 @@ sequenceDiagram
     participant Stow as GNU Stow
 
     User->>CurlBash: Run `curl ... | bash`
-    CurlBash->>Make: git clone dotfiles-core && make bootstrap
+    CurlBash->>Make: git clone dotfiles-core && make setup
     Make->>VCS: vcs import components/ < repos.yaml
     VCS-->>Make: Parallel Clone All Repos
     Make->>BW: bw login && bw unlock

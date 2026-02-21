@@ -28,15 +28,20 @@
 ## 🛠 Prerequisites
 
 - **OS**: Ubuntu (22.04 / 24.04 LTS 推奨)
-- **Tools**: GNU Make, Python3, curl, jq, GNU Stow
+- **Tools**: GNU Make, Python3, curl, jq, GNU Stow, vcstool（リポジトリ管理）, bw（Bitwarden CLI: シークレット管理）
+- **Note**: `make init` で一部ツールが自動インストールされる場合がありますが、事前に利用可能な状態にしておくことを推奨します。
 
 ## ⚡ Quick Start (Bootstrap)
 
 まっさらな環境から以下の手順でセットアップを完了させます。
 
 ```bash
-# 1. リポジトリをクローン
+# 1. リポジトリをクローン（以下のどちらか1つ）
+# SSH キーの設定が必要
 git clone git@github.com:yohi/dotfiles-core.git ~/dotfiles
+
+# SSH キー未設定の場合（HTTPS）
+git clone https://github.com/yohi/dotfiles-core.git ~/dotfiles
 cd ~/dotfiles
 
 # 2. 初期化と一括セットアップ
