@@ -35,7 +35,7 @@ link:
 		[ -d "$$dir" ] || continue; \
 		name=$$(basename "$$dir"); \
 		echo "Stowing $$name..."; \
-		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; \
+		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) "$$name"; \
 	done
 
 secrets:
