@@ -1,96 +1,96 @@
-# Component Layout Convention（コンポーネント配置規約）
+# Component Layout Convention
 
-> **対象**: `components/` 配下の全マイクロリポジトリ
+> **Scope**: All micro-repositories under `components/`
 
-## 概要
+## Overview
 
-各コンポーネントリポジトリは、GNU Stow によるシンボリックリンク展開と Make による自動化を前提としたフラットレイアウト構成を採る。
-本規約は、リポジトリ間の一貫性を保ち、新規コンポーネント追加時のスキャフォールディングを容易にすることを目的とする。
+Each component repository adopts a flat layout designed for symbolic link deployment using GNU Stow and automation via Make.
+This convention ensures consistency across repositories and simplifies scaffolding when adding new components.
 
 ---
 
-## ディレクトリ構成テンプレート
+## Directory Structure Template
 
 ```text
 dotfiles-<name>/
 ├── .git/
 ├── .gitignore
-├── .stow-local-ignore          # [必須] Stow除外ルール
-├── Makefile                     # [必須] setup ターゲットを含むエントリポイント
-├── README.md                    # [必須] コンポーネント概要
-├── LICENSE                      # [必須] ライセンスファイル
-├── AGENTS.md                    # [必須] AIエージェントへの指示・タスク定義
+├── .stow-local-ignore          # [Required] Stow exclusion rules
+├── Makefile                     # [Required] Entry point with 'setup' target
+├── README.md                    # [Required] Component overview
+├── LICENSE                      # [Required] License file (MIT)
+├── AGENTS.md                    # [Required] Instructions and task definitions for AI agents
 │
-├── _mk/                          # [任意] Makefile を機能ごとに分割する場合
+├── _mk/                          # [Optional] For split Makefile modules
 │   ├── <feature-a>.mk
 │   └── <feature-b>.mk
 │
-├── bin/                         # [任意] $PATH に追加する実行可能スクリプト
+├── bin/                         # [Optional] Executable scripts to be added to $PATH
 │   └── <script-name>
 │
-├── scripts/                     # [任意] 内部ユーティリティ（$PATH 非公開）
+├── scripts/                     # [Optional] Internal utilities (not in $PATH)
 │   └── <internal-helper>.sh
 │
-├── docs/                        # [任意] 詳細ドキュメント
+├── docs/                        # [Optional] Detailed documentation
 │   └── <topic>.md
 │
-├── tests/                       # [任意] テストスクリプト
+├── tests/                       # [Optional] Test scripts
 │   └── test-<feature>.sh
 │
-├── <tool-specific-dir>/         # [Stow対象] ツール固有の設定ディレクトリ
-│   └── ...                      #   例: starship/, prompts/, claude/, opencode/
+├── <tool-specific-dir>/         # [Stow Target] Tool-specific configuration directories
+│   └── ...                      #   e.g., starship/, prompts/, claude/, opencode/
 │
-└── dot-<file>                   # [Stow対象] ドットファイル（Stowの --dotfiles で展開）
-                                 #   例: dot-zshrc -> ~/.zshrc
+└── dot-<file>                   # [Stow Target] Dotfiles (expanded via Stow's --dotfiles)
+                                 #   e.g., dot-zshrc -> ~/.zshrc
 ```
 
 ---
 
-## ファイル分類ルール
+## File Classification Rules
 
-### 必須ファイル（全コンポーネント共通）
+### Required Files (Common to all components)
 
-| ファイル | 役割 | 備考 |
+| File | Role | Remarks |
 | :--- | :--- | :--- |
-| `Makefile` | `setup` ターゲットを公開。dotfiles-core から委譲呼び出しされる | 後述のMakefile規約に従う |
-| `.stow-local-ignore` | Stow がリンクしないファイル/ディレクトリを列挙 | 後述の.stow-local-ignore規約に従う |
-| `README.md` | コンポーネントの概要・使い方 | 日本語で記述 |
-| `LICENSE` | ライセンス | MIT |
-| `AGENTS.md` | AIエージェントへの指示・タスク定義 | — |
-| `.gitignore` | Git 除外ルール | — |
+| `Makefile` | Exposes `setup` target. Called by delegation from `dotfiles-core`. | Follows Makefile convention below. |
+| `.stow-local-ignore` | Lists files/directories that Stow should not link. | Follows .stow-local-ignore convention below. |
+| `README.md` | Component overview and usage. | Documented in Japanese (or English). |
+| `LICENSE` | License. | MIT |
+| `AGENTS.md` | AI agent instructions and task definitions. | Essential for agentic workflows. |
+| `.gitignore` | Git exclusion rules. | Standard practice. |
 
-### Stow 対象ファイル（`~` にリンクされるもの）
+### Stow Target Files (Linked to `~`)
 
-リポジトリ直下に置かれたファイル（`dot-zshrc` など）やディレクトリは、`.stow-local-ignore` で除外されない限り `~` にシンボリックリンクされる。隠しファイルとして配置したい設定ファイルのファイル名には `dot-` プレフィックスを付けること（Stow の `--dotfiles` オプションにより `~/.zshrc` 等の隠しファイルとして展開される）。
+Files placed at the repository root (e.g., `dot-zshrc`) or directories are symlinked to `~` unless excluded by `.stow-local-ignore`. For configuration files intended to be hidden, use the `dot-` prefix; Stow's `--dotfiles` option will expand them correctly (e.g., `dot-zshrc` becomes `~/.zshrc`).
 
-**原則**: Stow が `~` に展開するファイルは、ユーザーの `$HOME` に直接必要な設定ファイルのみ。
+**Principle**: Only configuration files directly required in the user's `$HOME` should be expanded by Stow.
 
-### Stow 非対象ファイル（管理・開発用）
+### Non-Stow Files (Management and Development)
 
-以下のファイル/ディレクトリは `.stow-local-ignore` に列挙し、Stow のリンク対象から除外する:
+The following files/directories must be listed in `.stow-local-ignore` to prevent them from being symlinked:
 
-| 対象 | 理由 |
+| Item | Reason |
 | :--- | :--- |
-| `Makefile` | ビルド制御ファイル |
-| `README.md` / `QUICKSTART.md` 等 | ドキュメント |
-| `LICENSE` | ライセンスファイル |
-| `.git` | Git メタデータ |
-| `.gitignore` | Git 除外ルール |
-| `_mk/` | Makefile 分割ファイル |
-| `bin/` | PATH 追加スクリプト（Stowではなく `$PATH` で参照） |
-| `scripts/` | 内部ユーティリティ |
-| `docs/` | ドキュメント |
-| `tests/` | テスト |
-| `archive/` | アーカイブ |
-| `examples/` | 設定例 |
+| `Makefile` | Build control file. |
+| `README.md` / `QUICKSTART.md` | Documentation. |
+| `LICENSE` | License file. |
+| `.git` | Git metadata. |
+| `.gitignore` | Git exclusion rules. |
+| `_mk/` | Makefile modules. |
+| `bin/` | Scripts to be referenced via `$PATH` (not symlinked to `~`). |
+| `scripts/` | Internal utilities. |
+| `docs/` | Documentation. |
+| `tests/` | Tests. |
+| `archive/` | Archives. |
+| `examples/` | Configuration examples. |
 
 ---
 
-## `.stow-local-ignore` 規約
+## `.stow-local-ignore` Convention
 
-各コンポーネントは必ず `.stow-local-ignore` を配置し、管理用ファイルが `~` にリンクされることを防ぐ。
+Every component MUST include a `.stow-local-ignore` file to prevent management files from being linked to `~`.
 
-### 最低限のテンプレート
+### Basic Template
 
 ```text
 # === VCS / Meta ===
@@ -105,7 +105,7 @@ LICENSE
 AGENTS\.md
 
 # === Management Dirs ===
-mk
+_mk
 scripts
 docs
 tests
@@ -115,81 +115,80 @@ bin
 ```
 
 > [!IMPORTANT]
-> `.stow-local-ignore` のパターンは **正規表現** として解釈される（`.` は任意文字にマッチするため、ファイル名中の `.` は `\.` とエスケープする）。
+> Patterns in `.stow-local-ignore` are interpreted as **regular expressions**. Since `.` matches any character, escape it as `\.` for literal dots in filenames.
 >
 > [!TIP]
-> `.stow-local-ignore` を配置すると Stow のデフォルト除外ルール（`README.*`, `LICENSE` 等の自動除外）が**無効化**されるため、それらも明示的に列挙すること。
->
+> Providing a `.stow-local-ignore` file **disables** Stow's default exclusion rules (like automatic exclusion of `README.*` or `LICENSE`). You must list them explicitly.
+
 ---
 
-## Makefile 規約
+## Makefile Convention
 
-### 基本構造
+### Basic Structure
 
 ```makefile
 # dotfiles-<name> Makefile
 .DEFAULT_GOAL := setup
 
-# _mk/ ディレクトリにサブターゲットがある場合は include
+# Include sub-targets from _mk/ if necessary
 # include _mk/<feature>.mk
 
 .PHONY: setup
 setup:
  @echo "==> Setting up dotfiles-<name>"
- # コンポーネント固有のセットアップ処理
+ # Component-specific setup logic goes here
 ```
 
-### ルール
+### Rules
 
-1. **`setup` ターゲットは必須**。dotfiles-core の `make setup` から委譲呼び出しされる唯一のインターフェース。
-2. **`.DEFAULT_GOAL := setup`** を設定する（`_mk/` を include する場合は特に重要）。
-3. **`.PHONY`** で `setup` およびすべての非ファイルターゲットを宣言する。
-4. **`_mk/` ディレクトリ** でサブターゲットを分割する場合は `include _mk/*.mk` で読み込む。ルート Makefile には `setup` ターゲットのみを定義し、肥大化を防ぐ。
-5. **進捗表示**: `@echo "==> ..."` 形式で処理の開始を通知する。
+1. **`setup` target is mandatory**. This is the primary interface called by `dotfiles-core`.
+2. **Set `.DEFAULT_GOAL := setup`**. This is especially important when including files from `_mk/`.
+3. **Declare all non-file targets as `.PHONY`**.
+4. **Use `_mk/` directory** for modularizing Makefiles. Keep the root `Makefile` clean with only the `setup` target and includes.
+5. **Progress display**: Use `@echo "==> ..."` to notify the start of a process.
 
 ---
 
-## `bin/` と `scripts/` の使い分け
+## `bin/` vs `scripts/`
 
-| ディレクトリ | 用途 | `$PATH` 追加 | Stow 対象 |
+| Directory | Purpose | Added to `$PATH` | Stow Target |
 | :--- | :--- | :--- | :--- |
-| `bin/` | 他コンポーネントやユーザーが呼び出す**公開コマンド** | ✅ dotfiles-zsh 側で動的追加 | ❌ `.stow-local-ignore` で除外 |
-| `scripts/` | コンポーネント内部でのみ使う**ヘルパー** | ❌ | ❌ `.stow-local-ignore` で除外 |
+| `bin/` | **Public commands** called by users or other components. | ✅ Dynamically added via `dotfiles-zsh`. | ❌ Excluded via `.stow-local-ignore`. |
+| `scripts/` | **Internal helpers** used only within the component. | ❌ | ❌ Excluded via `.stow-local-ignore`. |
 
 > [!NOTE]
-> `bin/` のパスは、SPEC.md に記載の疎結合パターンに従い、dotfiles-zsh の `.zshrc` 等で
-> `export PATH="${DOTFILES_SHELL_ROOT}/../dotfiles-git/bin:$PATH"` のように動的に追加する。
+> Following the decoupling pattern in `SPEC.md §3`, paths to `bin/` are dynamically added in `.zshrc` (e.g., `export PATH="${DOTFILES_SHELL_ROOT}/../dotfiles-git/bin:$PATH"`).
 
 ---
 
-## パス解決ルール（SPEC.md §3 準拠）
+## Path Resolution Rules (Compliance with SPEC.md §3)
 
-すべてのスクリプトは、カレントディレクトリに依存しない防御的パス解決を行うこと。
+All scripts must perform defensive path resolution that does not depend on the current working directory.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 自身のリポジトリルートを動的解決
+# Dynamically resolve the absolute path to the repository root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ```
 
-**禁止事項**:
+**Prohibited Actions**:
 
-- ハードコードされた絶対パス（例: `~/dotfiles/components/dotfiles-zsh/...`）
-- モノレポ時代の `$DOTFILES_DIR` による参照
+- Hardcoded absolute paths (e.g., `~/dotfiles/components/dotfiles-zsh/...`).
+- References using `$DOTFILES_DIR` from the previous monorepo architecture.
 
 ---
 
-## 新規コンポーネント追加チェックリスト
+## New Component Checklist
 
-新しい `dotfiles-<name>` リポジトリを作成する際のチェックリスト:
+When creating a new `dotfiles-<name>` repository, ensure the following are present:
 
-- [ ] `Makefile` — `setup` ターゲットを持つこと
-- [ ] `.stow-local-ignore` — 管理用ファイルをすべて列挙すること
-- [ ] `README.md` — コンポーネントの概要を日本語で記述
-- [ ] `LICENSE` — MIT ライセンスを配置
-- [ ] `.gitignore` — 必要な除外ルールを定義
-- [ ] `repos.yaml` への登録 — dotfiles-core 側で追記
-- [ ] Stow 対象ファイルの確認 — `stow --no --verbose=2` でドライラン確認
+- [ ] `Makefile`: Must include a `setup` target.
+- [ ] `.stow-local-ignore`: Must explicitly list all management and non-configuration files.
+- [ ] `README.md`: Component overview (in Japanese or English).
+- [ ] `LICENSE`: MIT License file.
+- [ ] `.gitignore`: Necessary exclusion rules.
+- [ ] Register in `repos.yaml`: Update the central `dotfiles-core` repository.
+- [ ] Verify Stow operation: Perform a dry run with `stow --no --verbose=2`.
