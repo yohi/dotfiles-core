@@ -1,4 +1,5 @@
 # dotfiles-core: Orchestrator Makefile
+SHELL := /bin/bash
 
 COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml

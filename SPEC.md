@@ -98,17 +98,33 @@ sequenceDiagram
 
 # Features & Requirements
 
-### Must Have (必須要件)
+## Must Have (必須要件)
 
-1. **1-Command Bootstrap**: curl ワンライナーで、vcstool のインストールから全リポジトリの同期、リンク展開まで完了する。
-2. **Meta-Repository Pattern**: vcstool と repos.yaml を使用し、堅牢で高速なリポジトリ同期（並列処理）を実現する。
-3. **Explicit Symlinking (明示的リンク方式)**: 各コンポーネント内の Makefile で `ln -sfn <source> <target>` をターゲットファイルごとに明示的に記述する。これにより予期せぬディレクトリのオートフォールディングやリンク漏れを防ぎ、リポジトリの自由なディレクトリ構造を許容する。
-4. **Idempotency (冪等性)**: リンクを張る前に必要な親ディレクトリ（mkdir -p）を作成するなど、何度実行しても環境が壊れないロジックを実装する。
+### 1. 1-Command Bootstrap
 
-### Should Have (推奨要件)
+curl ワンライナーで、vcstool のインストールから全リポジトリの同期、リンク展開まで完了する。
 
-1. **Component Delegation**: dotfiles-core の Makefile はただのディスパッチャーに徹し、make link や make setup の実態はすべて各コンポーネント（例: dotfiles-ai/Makefile）に委譲する。
-2. **Global DevContainer**: 個別のコンポーネントではなく、~/dotfiles（メタ・リポジトリ全体）をマウントする .devcontainer を dotfiles-core に配置し、横断的な開発体験を維持する。
+### 2. Meta-Repository Pattern
+
+vcstool と repos.yaml を使用し、堅牢で高速なリポジトリ同期（並列処理）を実現する。
+
+### 3. Explicit Symlinking (明示的リンク方式)
+
+各コンポーネント内の Makefile で `ln -sfn <source> <target>` をターゲットファイルごとに明示的に記述する。これにより予期せぬディレクトリのオートフォールディングやリンク漏れを防ぎ、リポジトリの自由なディレクトリ構造を許容する。
+
+### 4. Idempotency (冪等性)
+
+リンクを張る前に必要な親ディレクトリ（mkdir -p）を作成するなど、何度実行しても環境が壊れないロジックを実装する。
+
+## Should Have (推奨要件)
+
+### 1. Component Delegation
+
+dotfiles-core の Makefile はただのディスパッチャーに徹し、make link や make setup の実態はすべて各コンポーネント（例: dotfiles-ai/Makefile）に委譲する。
+
+### 2. Global DevContainer
+
+個別のコンポーネントではなく、~/dotfiles（メタ・リポジトリ全体）をマウントする .devcontainer を dotfiles-core に配置し、横断的な開発体験を維持する。
 
 # Data Structure
 
@@ -155,7 +171,7 @@ repositories:
 
 # API Definition (Makefile Targets)
 
-### Orchestrator (dotfiles-core/Makefile)
+## Orchestrator (dotfiles-core/Makefile)
 
 | Target | Description |
 | :---- | :---- |
@@ -165,7 +181,7 @@ repositories:
 | make link | components/ 以下の全ディレクトリをループし、Makefile があれば make link を委譲する。 |
 | make setup | components/ 以下の全ディレクトリをループし、Makefile があれば make setup を委譲する。 |
 
-### Component Level (e.g., dotfiles-ai/Makefile)
+## Component Level (e.g., dotfiles-ai/Makefile)
 
 各リポジトリは、自身の責任で以下のターゲットを実装する。
 
