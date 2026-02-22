@@ -87,8 +87,8 @@ sequenceDiagram
     CurlBash->>CoreMake: git clone dotfiles-core && make setup
     CoreMake->>VCS: vcs import components/ < repos.yaml
     VCS-->>CoreMake: Parallel Clone All Repos
-    CoreMake->>BW: bw login && bw unlock
-    BW-->>CoreMake: Fetch Secrets & Write to Memory/Temp
+    CoreMake->>BW: bw login && bw unlock (planned/予定)
+    BW-->>CoreMake: Fetch Secrets & Write to Memory/Temp (planned/予定)
     CoreMake->>SubMake: foreach dir: make link
     SubMake->>SubMake: Execute `ln -sfn` for specific paths
     CoreMake->>SubMake: foreach dir: make setup
@@ -177,7 +177,7 @@ repositories:
 | :---- | :---- |
 | make init | 依存関係（vcstool, jq 等）をインストールし、リポジトリを初期クローンする。 |
 | make sync | vcs import components/ < repos.yaml 及び vcs pull で全コンポーネントを最新化する。 |
-| make secrets | Bitwarden CLI を呼び出し、クレデンシャルをローカルに安全に展開する。 |
+| make secrets | Bitwarden CLI を呼び出し、クレデンシャルをローカルに安全に展開する。(planned/予定) |
 | make link | components/ 以下の全ディレクトリをループし、Makefile があれば make link を委譲する。 |
 | make setup | components/ 以下の全ディレクトリをループし、Makefile があれば make setup を委譲する。 |
 
@@ -207,17 +207,23 @@ repositories:
 この仕様書を読み込んでコードを生成するAIエージェントへの指示事項：
 
 1. **vcs tool implementation**: make init および make sync の実装には、自前の git clone ループではなく、必ず vcs import と vcs pull を使用してください。
-2. **Delegation Logic**: dotfiles-core/Makefile の link および setup ターゲットでは、以下のような `find` と `while read` を組み合わせた Bash ループを記述して、各コンポーネントに処理を委譲してください。ディレクトリ名にスペースが含まれていても安全に処理し、且つターゲットが存在するか `--dry-run` (`-n`) で確認した上で実行します。
+2. **Delegation Logic**: dotfiles-core/Makefile の link および setup ターゲットでは、以下のような `find` と `while read` を組み合わせた Bash ループを記述して、各コンポーネントに処理を委譲してください。ディレクトリ名にスペースが含まれていても安全に処理し、且つターゲットが存在するか `--dry-run` (`-n`) で確認した上で実行します。 failures は無視せず、合計をカウントして非ゼロで終了するようにしてください。
 
    ```bash
    @if [ -d "$(COMPONENTS_DIR)" ]; then \
-       find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+       fail_count=0; \
+       total_count=0; \
+       while IFS= read -r -d '' dir; do \
            if [ -f "$$dir/Makefile" ]; then \
                if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
-                   $(MAKE) -C "$$dir" link || true; \
+                   total_count=$$((total_count + 1)); \
+                   if ! $(MAKE) -C "$$dir" link; then \
+                       fail_count=$$((fail_count + 1)); \
+                   fi; \
                fi; \
            fi; \
-       done; \
+       done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+       if [ $$fail_count -gt 0 ]; then exit 1; fi; \
    fi
    ```
 

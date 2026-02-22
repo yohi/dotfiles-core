@@ -33,16 +33,25 @@ sync:
 link:
 	@echo "==> Delegating link to components..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+		fail_count=0; \
+		total_count=0; \
+		while IFS= read -r -d '' dir; do \
 			if [ -f "$$dir/Makefile" ]; then \
 				if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
+					total_count=$$((total_count+1)); \
 					echo "Running make link in $$dir..."; \
-					$(MAKE) -C "$$dir" link || true; \
+					if ! $(MAKE) -C "$$dir" link; then \
+						echo "WARNING: make link failed in $$dir" >&2; \
+						fail_count=$$((fail_count+1)); \
+					fi; \
 				else \
 					echo "Skipping $$dir (no link target)"; \
 				fi; \
 			fi; \
-		done; \
+		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		echo "---"; \
+		echo "Summary: $$total_count components attempted, $$fail_count failures."; \
+		if [ $$fail_count -gt 0 ]; then exit 1; fi; \
 	fi
 
 secrets:
@@ -56,16 +65,25 @@ secrets:
 setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+		fail_count=0; \
+		total_count=0; \
+		while IFS= read -r -d '' dir; do \
 			if [ -f "$$dir/Makefile" ]; then \
 				if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
+					total_count=$$((total_count+1)); \
 					echo "Running make setup in $$dir..."; \
-					$(MAKE) -C "$$dir" setup || true; \
+					if ! $(MAKE) -C "$$dir" setup; then \
+						echo "WARNING: make setup failed in $$dir" >&2; \
+						fail_count=$$((fail_count+1)); \
+					fi; \
 				else \
 					echo "Skipping $$dir (no setup target)"; \
 				fi; \
 			fi; \
-		done; \
+		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		echo "---"; \
+		echo "Summary: $$total_count components attempted, $$fail_count failures."; \
+		if [ $$fail_count -gt 0 ]; then exit 1; fi; \
 	fi
 	@echo "==> Setup Complete!"
 
