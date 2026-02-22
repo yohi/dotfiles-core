@@ -28,7 +28,7 @@
 ## 🛠 Prerequisites
 
 - **OS**: Ubuntu (22.04 / 24.04 LTS 推奨)
-- **Tools**: GNU Make, Python3, curl, jq, GNU Stow, vcstool（リポジトリ管理）, bw（Bitwarden CLI: シークレット管理）
+- **Tools**: GNU Make, Python3, curl, jq, vcstool（リポジトリ管理）, bw（Bitwarden CLI: シークレット管理）
 - **Note**: `make init` で一部ツールが自動インストールされる場合がありますが、事前に利用可能な状態にしておくことを推奨します。
 
 ## ⚡ Quick Start (Bootstrap)
@@ -45,7 +45,7 @@ git clone https://github.com/yohi/dotfiles-core.git ~/dotfiles
 cd ~/dotfiles
 
 # 2. 初期化と一括セットアップ
-# (依存関係のインストール、全リポジトリの同期、Stowによるリンク、各リポジトリ固有のセットアップを実行)
+# (依存関係のインストール、全リポジトリの同期、リンクの展開、各リポジトリ固有のセットアップを実行)
 make setup
 ```
 
@@ -53,9 +53,9 @@ make setup
 
 | Target | Description |
 | :--- | :--- |
-| `make init` | 依存関係 (`vcstool`, `stow`, `jq` 等) を導入し、リポジトリを初期クローンします。 |
+| `make init` | 依存関係 (`vcstool`, `jq`, `curl` 等) を導入し、リポジトリを初期クローンします。 |
 | `make sync` | `vcstool` を使用して、全コンポーネントを最新の状態に更新します。 |
-| `make link` | `components/` 以下の各ディレクトリに対して `stow` を実行し、`~` へリンクを展開します。 |
+| `make link` | `components/` 以下の各ディレクトリに対してリンク処理 (`ln -sfn`) を委譲し、`~` へ設定を展開します。 |
 | `make secrets` | Bitwarden CLI を呼び出し、クレデンシャルを解決します。 |
 | `make setup` | 上記を順に実行し、各コンポーネント固有の `make setup` があれば呼び出して処理を委譲します。 |
 

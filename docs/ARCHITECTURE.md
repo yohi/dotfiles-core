@@ -4,7 +4,7 @@
 
 ## Overview
 
-Each component repository adopts a flat layout designed for symbolic link deployment using GNU Stow and automation via Make.
+Each component repository adopts a flat layout designed for explicit symbolic link deployment (`ln -sfn`) and automation via Make.
 This convention ensures consistency across repositories and simplifies scaffolding when adding new components.
 
 ---
@@ -15,8 +15,7 @@ This convention ensures consistency across repositories and simplifies scaffoldi
 dotfiles-<name>/
 ├── .git/
 ├── .gitignore
-├── .stow-local-ignore          # [Required] Stow exclusion rules
-├── Makefile                     # [Required] Entry point with 'setup' target
+├── Makefile                     # [Required] Entry point with 'setup' and 'link' targets
 ├── README.md                    # [Required] Component overview
 ├── LICENSE                      # [Required] License file (MIT)
 ├── AGENTS.md                    # [Required] Instructions and task definitions for AI agents
@@ -25,23 +24,23 @@ dotfiles-<name>/
 │   ├── <feature-a>.mk
 │   └── <feature-b>.mk
 │
-├── bin/                         # [Optional] Executable scripts to be added to $PATH
+├── _bin/                        # [Optional] Executable scripts to be added to $PATH
 │   └── <script-name>
 │
-├── scripts/                     # [Optional] Internal utilities (not in $PATH)
+├── _scripts/                    # [Optional] Internal utilities (not in $PATH)
 │   └── <internal-helper>.sh
 │
-├── docs/                        # [Optional] Detailed documentation
+├── _docs/                       # [Optional] Detailed documentation
 │   └── <topic>.md
 │
-├── tests/                       # [Optional] Test scripts
+├── _tests/                      # [Optional] Test scripts
 │   └── test-<feature>.sh
 │
-├── <tool-specific-dir>/         # [Stow Target] Tool-specific configuration directories
+├── <tool-specific-dir>/         # [Link Target] Tool-specific configuration directories
 │   └── ...                      #   e.g., starship/, prompts/, claude/, opencode/
 │
-└── dot-<file>                   # [Stow Target] Dotfiles (expanded via Stow's --dotfiles)
-                                 #   e.g., dot-zshrc -> ~/.zshrc
+└── <file>                       # [Link Target] Configuration files (explicitly linked by component Makefile)
+                                 #   e.g., zshrc -> ~/.zshrc
 ```
 
 ---
@@ -52,22 +51,21 @@ dotfiles-<name>/
 
 | File | Role | Remarks |
 | :--- | :--- | :--- |
-| `Makefile` | Exposes `setup` target. Called by delegation from `dotfiles-core`. | Follows Makefile convention below. |
-| `.stow-local-ignore` | Lists files/directories that Stow should not link. | Follows .stow-local-ignore convention below. |
+| `Makefile` | Exposes `setup` and `link` targets. Called by delegation from `dotfiles-core`. | Follows Makefile convention below. |
 | `README.md` | Component overview and usage. | Documented in Japanese (or English). |
 | `LICENSE` | License. | MIT |
 | `AGENTS.md` | AI agent instructions and task definitions. | Essential for agentic workflows. |
 | `.gitignore` | Git exclusion rules. | Standard practice. |
 
-### Stow Target Files (Linked to `~`)
+### Link Target Files (Linked to `~`)
 
-Files placed at the repository root (e.g., `dot-zshrc`) or directories are symlinked to `~` unless excluded by `.stow-local-ignore`. For configuration files intended to be hidden, use the `dot-` prefix; Stow's `--dotfiles` option will expand them correctly (e.g., `dot-zshrc` becomes `~/.zshrc`).
+Files placed at the repository root (e.g., `zshrc`) or directories should be symlinked to `~` using explicit `ln -sfn` commands in the component's Makefile. Since symbolic links are managed explicitly, there is no need to use a `dot-` or `.` prefix in the repository. You can use standard names (e.g., `zshrc`) and map them to hidden files in the target directory (e.g., linking `zshrc` to `~/.zshrc`).
 
-**Principle**: Only configuration files directly required in the user's `$HOME` should be expanded by Stow.
+**Principle**: Only configuration files directly required in the user's `$HOME` should be linked by the component's Makefile.
 
-### Non-Stow Files (Management and Development)
+### Management and Development Files
 
-The following files/directories must be listed in `.stow-local-ignore` to prevent them from being symlinked:
+The following files/directories are managed within the component but should not be linked to `~`:
 
 | Item | Reason |
 | :--- | :--- |
@@ -77,48 +75,12 @@ The following files/directories must be listed in `.stow-local-ignore` to preven
 | `.git` | Git metadata. |
 | `.gitignore` | Git exclusion rules. |
 | `_mk/` | Makefile modules. |
-| `bin/` | Scripts to be referenced via `$PATH` (not symlinked to `~`). |
-| `scripts/` | Internal utilities. |
-| `docs/` | Documentation. |
-| `tests/` | Tests. |
+| `_bin/` | Scripts to be referenced via `$PATH` (not symlinked to `~`). |
+| `_scripts/` | Internal utilities. |
+| `_docs/` | Documentation. |
+| `_tests/` | Tests. |
 | `archive/` | Archives. |
 | `examples/` | Configuration examples. |
-
----
-
-## `.stow-local-ignore` Convention
-
-Every component MUST include a `.stow-local-ignore` file to prevent management files from being linked to `~`.
-
-### Basic Template
-
-```text
-# === VCS / Meta ===
-\.git
-\.gitignore
-
-# === Build / Docs ===
-Makefile
-README\.md
-QUICKSTART\.md
-LICENSE
-AGENTS\.md
-
-# === Management Dirs ===
-_mk
-scripts
-docs
-tests
-archive
-examples
-bin
-```
-
-> [!IMPORTANT]
-> Patterns in `.stow-local-ignore` are interpreted as **regular expressions**. Since `.` matches any character, escape it as `\.` for literal dots in filenames.
->
-> [!TIP]
-> Providing a `.stow-local-ignore` file **disables** Stow's default exclusion rules (like automatic exclusion of `README.*` or `LICENSE`). You must list them explicitly.
 
 ---
 
@@ -137,11 +99,16 @@ bin
 setup:
  @echo "==> Setting up dotfiles-<name>"
  # Component-specific setup logic goes here
+
+.PHONY: link
+link:
+ @echo "==> Linking dotfiles-<name>"
+ # Explicit ln -sfn commands go here
 ```
 
 ### Rules
 
-1. **`setup` target is mandatory**. This is the primary interface called by `dotfiles-core`.
+1. **`setup` and `link` targets are mandatory**. These are the primary interfaces called by `dotfiles-core`.
 2. **Set `.DEFAULT_GOAL := setup`**. This is especially important when including files from `_mk/`.
 3. **Declare all non-file targets as `.PHONY`**.
 4. **Use `_mk/` directory** for modularizing Makefiles. Keep the root `Makefile` clean with only the `setup` target and includes.
@@ -149,15 +116,15 @@ setup:
 
 ---
 
-## `bin/` vs `scripts/`
+## `_bin/` vs `_scripts/`
 
-| Directory | Purpose | Added to `$PATH` | Stow Target |
+| Directory | Purpose | Added to `$PATH` | Link Target |
 | :--- | :--- | :--- | :--- |
-| `bin/` | **Public commands** called by users or other components. | ✅ Dynamically added via `dotfiles-zsh`. | ❌ Excluded via `.stow-local-ignore`. |
-| `scripts/` | **Internal helpers** used only within the component. | ❌ | ❌ Excluded via `.stow-local-ignore`. |
+| `_bin/` | **Public commands** called by users or other components. | ✅ Dynamically added via `dotfiles-zsh`. | ❌ Not linked to `~`. |
+| `_scripts/` | **Internal helpers** used only within the component. | ❌ | ❌ Not linked to `~`. |
 
 > [!NOTE]
-> Following the decoupling pattern in `SPEC.md §3`, paths to `bin/` are dynamically added in `.zshrc` (e.g., `export PATH="${DOTFILES_SHELL_ROOT}/../dotfiles-git/bin:$PATH"`).
+> Following the decoupling pattern in `SPEC.md §3`, paths to `_bin/` are dynamically added in `.zshrc` (e.g., `export PATH="${DOTFILES_SHELL_ROOT}/../dotfiles-git/_bin:$PATH"`).
 
 ---
 
@@ -185,10 +152,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 When creating a new `dotfiles-<name>` repository, ensure the following are present:
 
-- [ ] `Makefile`: Must include a `setup` target.
-- [ ] `.stow-local-ignore`: Must explicitly list all management and non-configuration files.
+- [ ] `Makefile`: Must include `setup` and `link` targets.
 - [ ] `README.md`: Component overview (in Japanese or English).
 - [ ] `LICENSE`: MIT License file.
 - [ ] `.gitignore`: Necessary exclusion rules.
 - [ ] Register in `repos.yaml`: Update the central `dotfiles-core` repository.
-- [ ] Verify Stow operation: Perform a dry run with `stow --no --verbose=2`.
+- [ ] Verify Link operation: Perform a dry run with `make -n link`.

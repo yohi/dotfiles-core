@@ -16,11 +16,22 @@ This repository has **no tests, no lint, no build**. It is purely an orchestrato
 | Task | Command | Description |
 | :--- | :--- | :--- |
 | **Full Setup** | `make setup` | Install deps, sync repos, resolve secrets, link files, delegate to components |
-| **Init** | `make init` | Install `vcstool`, `stow`, `jq` and clone all repos |
+| **Init** | `make init` | Install `vcstool`, `jq`, `curl` and clone all repos |
 | **Sync** | `make sync` | Pull latest changes for all components via `vcstool` |
-| **Link** | `make link` | Apply symlinks from `components/` to `~` using GNU Stow |
+| **Link** | `make link` | Delegate symlink creation (`ln -sfn`) to components |
 | **Secrets** | `make secrets` | Resolve credentials via Bitwarden CLI (`bw`) |
 | **Clean** | `make clean` | Remove all components (CAUTION: destructive) |
+
+### Required Tools
+
+To use this orchestrator and its components, ensure the following are installed:
+
+- **GNU Make**: Main task runner for orchestration and logic delegation
+- **Python3**: Required for `vcstool` and various internal scripts
+- **curl**: Used for initial bootstrap and downloading components
+- **jq**: Essential for processing JSON output, especially from Bitwarden CLI
+- **vcstool**: Used to manage multiple repositories defined in `repos.yaml`
+- **bw (Bitwarden CLI)**: Required for secure credential resolution via `make secrets`
 
 ## DIRECTORY STRUCTURE
 
@@ -85,12 +96,12 @@ STOW_TARGET := $(HOME)
 init:
  @echo "==> Initializing dependencies..."
 
-# Use @for loops with proper escaping
+# Use @for loops to delegate tasks
 link:
- @for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
-  name=$$(basename $$dir); \
-  echo "Stowing $$name..."; \
-  stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; \
+ @for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
+  if [ -f "$$dir/Makefile" ]; then \
+   $(MAKE) -C "$$dir" link || true; \
+  fi; \
  done
 ```
 
@@ -111,7 +122,7 @@ repositories:
 All operations must be safe to run multiple times:
 
 - `make setup` should never break an existing environment
-- Use `mkdir -p`, `stow --restow`, idempotent shell patterns
+- Use `mkdir -p`, `ln -sfn`, idempotent shell patterns
 
 ### 2. Minimalism
 
@@ -170,7 +181,7 @@ Per `opencode.jsonc` (when present), these operations are blocked for agent exec
 | `repos.yaml` | Repository manifest for vcstool |
 | `SPEC.md` | Detailed specification and requirements |
 | `GEMINI.md` | Project context for Gemini CLI |
-| `docs/ARCHITECTURE.md` | Component directory/file structure convention (all repos must comply) |
+| [ARCHITECTURE.md](https://raw.githubusercontent.com/yohi/dotfiles-core/refs/heads/master/docs/ARCHITECTURE.md) | Component directory/file structure convention (all repos must comply) |
 
 ## COMMON TASKS
 
@@ -188,22 +199,6 @@ Per `opencode.jsonc` (when present), these operations are blocked for agent exec
 2. Run `make sync` to clone
 3. Create `Makefile` with `setup` target in the component repo
 
-### Debugging Stow Issues
-
-```bash
-# Dry-run (explicit single-component form)
-stow --no --target=$HOME --dir=components/dotfiles-zsh .
-
-# Dry-run (Makefile loop form)
-stow --no --target=$HOME --dir=$(COMPONENTS_DIR) $$name
-
-# Restow (explicit single-component form)
-stow --restow --target=$HOME --dir=components/dotfiles-zsh .
-
-# Restow (Makefile loop form)
-stow --restow --target=$HOME --dir=$(COMPONENTS_DIR) $$name
-```
-
 ### Checking Component Status
 
 ```bash
@@ -218,4 +213,4 @@ vcs status components/
 
 - **OS**: Ubuntu 22.04 / 24.04 LTS
 - **Shell**: Bash / Zsh
-- **Required Tools**: GNU Make, Python3, curl, jq, GNU Stow
+- **Required Tools**: GNU Make, Python3, curl, jq, vcstool, bw (Bitwarden CLI)
