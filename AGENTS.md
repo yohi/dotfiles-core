@@ -83,15 +83,15 @@ STOW_TARGET := $(HOME)
 
 # Echo progress for user feedback
 init:
-	@echo "==> Initializing dependencies..."
+ @echo "==> Initializing dependencies..."
 
 # Use @for loops with proper escaping
 link:
-	@for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
-		name=$$(basename $$dir); \
-		echo "Stowing $$name..."; \
-		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; \
-	done
+ @for dir in $(shell find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
+  name=$$(basename $$dir); \
+  echo "Stowing $$name..."; \
+  stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) $$name; \
+ done
 ```
 
 ### YAML (repos.yaml)
@@ -109,12 +109,14 @@ repositories:
 ### 1. Idempotency (冪等性)
 
 All operations must be safe to run multiple times:
+
 - `make setup` should never break an existing environment
 - Use `mkdir -p`, `stow --restow`, idempotent shell patterns
 
 ### 2. Minimalism
 
 `dotfiles-core` should remain thin:
+
 - Orchestration logic only
 - No component-specific configuration
 - Delegate to component Makefiles
@@ -122,9 +124,9 @@ All operations must be safe to run multiple times:
 ### 3. Component Delegation
 
 When `make setup` runs:
+
 1. Check if `components/<name>/Makefile` exists
-2. Check if `setup` target is defined (`grep -q "^setup:"`)
-3. If both true: `$(MAKE) -C "$dir" setup`
+2. If Makefile exists: `$(MAKE) -C "$dir" setup`
 
 ### 4. No Git Submodules
 
@@ -155,6 +157,7 @@ These restrictions are not global project rules for humans: legitimate operation
 If exceptions are allowed for agent execution, they must be explicitly declared in `opencode.jsonc`.
 
 Per `opencode.jsonc` (when present), these operations are blocked for agent execution unless explicitly allowed:
+
 - `rm` (destructive file operations)
 - `ssh` (remote access)
 - `sudo` (privilege escalation)
@@ -167,18 +170,21 @@ Per `opencode.jsonc` (when present), these operations are blocked for agent exec
 | `repos.yaml` | Repository manifest for vcstool |
 | `SPEC.md` | Detailed specification and requirements |
 | `GEMINI.md` | Project context for Gemini CLI |
+| `docs/ARCHITECTURE.md` | Component directory/file structure convention (all repos must comply) |
 
 ## COMMON TASKS
 
 ### Adding a New Component
 
 1. Add entry to `repos.yaml`:
+
    ```yaml
    components/dotfiles-<name>:
      type: git
      url: git@github.com:yohi/dotfiles-<name>.git
      version: master
    ```
+
 2. Run `make sync` to clone
 3. Create `Makefile` with `setup` target in the component repo
 
