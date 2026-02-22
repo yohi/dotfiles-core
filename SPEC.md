@@ -197,8 +197,8 @@ repositories:
 1. **自己完結したパス解決**:
    各コンポーネント内のスクリプトは、自身の位置を知るために `REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE}")/.." && pwd)"` 等を使用し、ハードコードされた絶対パス（/home/user/dotfiles/...）を避ける。
 2. **明示的なリンク定義**:
-   make link 内では、必ずリンク先の親ディレクトリが存在することを保証する。
-   例: `mkdir -p ~/.config/opencode && ln -sfn $(PWD)/opencode ~/.config/opencode/config`
+   make link 内では、必ずリンク先の親ディレクトリが存在することを保証する。ディレクトリ全体をリンクする場合と、特定のファイルやディレクトリを別名でリンクする場合がある。
+   例: `mkdir -p ~/.config/opencode && ln -sfn $(PWD)/opencode ~/.config/opencode/config` （この例では、リポジトリ内の `opencode` ディレクトリを `~/.config/opencode/config` という名前で、親ディレクトリ作成後にリンクしている）
 3. **コンポーネント内の管理用ディレクトリの扱い**:
    `_bin/`, `_scripts/`, `_docs/`, `_mk/` などの `_` で始まるディレクトリはリポジトリの運用ツール・ドキュメントであり、明示的に `Makefile` で `ln -sfn` のターゲットとして指定しない限り、ユーザーのホームディレクトリ等にはリンクされない。Stow等による自動リンクのような副作用はないため、自由かつ機能的なディレクトリ名を使用してよいが、設定実体との区別のために `_` プレフィックスを推奨する。
 
@@ -207,14 +207,18 @@ repositories:
 この仕様書を読み込んでコードを生成するAIエージェントへの指示事項：
 
 1. **vcs tool implementation**: make init および make sync の実装には、自前の git clone ループではなく、必ず vcs import と vcs pull を使用してください。
-2. **Delegation Logic**: dotfiles-core/Makefile の link および setup ターゲットでは、以下のような Bash のループを記述して各コンポーネントに処理を委譲してください。
+2. **Delegation Logic**: dotfiles-core/Makefile の link および setup ターゲットでは、以下のような `find` と `while read` を組み合わせた Bash ループを記述して、各コンポーネントに処理を委譲してください。ディレクトリ名にスペースが含まれていても安全に処理し、且つターゲットが存在するか `--dry-run` (`-n`) で確認した上で実行します。
 
    ```bash
-   @for dir in components/*; do \
-       if [ -f "$$dir/Makefile" ]; then \
-           $(MAKE) -C "$$dir" link || true; \
-       fi \
-   done
+   @if [ -d "$(COMPONENTS_DIR)" ]; then \
+       find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+           if [ -f "$$dir/Makefile" ]; then \
+               if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
+                   $(MAKE) -C "$$dir" link || true; \
+               fi; \
+           fi; \
+       done; \
+   fi
    ```
 
 3. **Link Implementation**: 各コンポーネントの Makefile を生成・更新する際、標準の `ln -sfn` を使用してリンク処理を明示的に記述してください。リンク生成前には必ず `mkdir -p $(dirname $TARGET)` (または該当する展開先ディレクトリの作成) を実行し、冪等性を担保してください。

@@ -60,7 +60,7 @@ setup: init sync secrets link
 			if [ -f "$$dir/Makefile" ]; then \
 				if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
 					echo "Running make setup in $$dir..."; \
-					$(MAKE) -C "$$dir" setup; \
+					$(MAKE) -C "$$dir" setup || true; \
 				else \
 					echo "Skipping $$dir (no setup target)"; \
 				fi; \
