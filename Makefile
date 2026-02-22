@@ -31,16 +31,18 @@ sync:
 
 link:
 	@echo "==> Delegating link to components..."
-	@for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
-		if [ -f "$$dir/Makefile" ]; then \
-			if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
-				echo "Running make link in $$dir..."; \
-				$(MAKE) -C "$$dir" link || true; \
-			else \
-				echo "Skipping $$dir (no link target)"; \
+	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+			if [ -f "$$dir/Makefile" ]; then \
+				if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
+					echo "Running make link in $$dir..."; \
+					$(MAKE) -C "$$dir" link || true; \
+				else \
+					echo "Skipping $$dir (no link target)"; \
+				fi; \
 			fi; \
-		fi; \
-	done
+		done; \
+	fi
 
 secrets:
 	@echo "==> Resolving secrets via Bitwarden CLI..."
@@ -52,16 +54,18 @@ secrets:
 
 setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
-	@for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
-		if [ -f "$$dir/Makefile" ]; then \
-			if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
-				echo "Running make setup in $$dir..."; \
-				$(MAKE) -C "$$dir" setup; \
-			else \
-				echo "Skipping $$dir (no setup target)"; \
+	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir; do \
+			if [ -f "$$dir/Makefile" ]; then \
+				if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
+					echo "Running make setup in $$dir..."; \
+					$(MAKE) -C "$$dir" setup; \
+				else \
+					echo "Skipping $$dir (no setup target)"; \
+				fi; \
 			fi; \
-		fi; \
-	done
+		done; \
+	fi
 	@echo "==> Setup Complete!"
 
 clean:

@@ -22,6 +22,17 @@ This repository has **no tests, no lint, no build**. It is purely an orchestrato
 | **Secrets** | `make secrets` | Resolve credentials via Bitwarden CLI (`bw`) |
 | **Clean** | `make clean` | Remove all components (CAUTION: destructive) |
 
+### Required Tools
+
+To use this orchestrator and its components, ensure the following are installed:
+
+- **GNU Make**: Main task runner for orchestration and logic delegation
+- **Python3**: Required for `vcstool` and various internal scripts
+- **curl**: Used for initial bootstrap and downloading components
+- **jq**: Essential for processing JSON output, especially from Bitwarden CLI
+- **vcstool**: Used to manage multiple repositories defined in `repos.yaml`
+- **bw (Bitwarden CLI)**: Required for secure credential resolution via `make secrets`
+
 ## DIRECTORY STRUCTURE
 
 ```text
@@ -202,4 +213,4 @@ vcs status components/
 
 - **OS**: Ubuntu 22.04 / 24.04 LTS
 - **Shell**: Bash / Zsh
-- **Required Tools**: GNU Make, Python3, curl, jq
+- **Required Tools**: GNU Make, Python3, curl, jq, vcstool, bw (Bitwarden CLI)

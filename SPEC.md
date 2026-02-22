@@ -84,7 +84,7 @@ sequenceDiagram
     participant SubMake as components/*/Makefile
 
     User->>CurlBash: Run `curl ... | bash`
-    CurlBash->>CoreMake: git clone dotfiles-core && make bootstrap
+    CurlBash->>CoreMake: git clone dotfiles-core && make setup
     CoreMake->>VCS: vcs import components/ < repos.yaml
     VCS-->>CoreMake: Parallel Clone All Repos
     CoreMake->>BW: bw login && bw unlock
