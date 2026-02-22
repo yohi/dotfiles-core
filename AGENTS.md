@@ -126,8 +126,7 @@ All operations must be safe to run multiple times:
 When `make setup` runs:
 
 1. Check if `components/<name>/Makefile` exists
-2. Check if `setup` target is defined (`grep -q "^setup:"`)
-3. If both true: `$(MAKE) -C "$dir" setup`
+2. If Makefile exists: `$(MAKE) -C "$dir" setup`
 
 ### 4. No Git Submodules
 

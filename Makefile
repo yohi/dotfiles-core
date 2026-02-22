@@ -50,8 +50,12 @@ setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
 	@for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
 		if [ -f "$$dir/Makefile" ]; then \
-			echo "Running make setup in $$dir..."; \
-			$(MAKE) -C "$$dir" setup; \
+			if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
+				echo "Running make setup in $$dir..."; \
+				$(MAKE) -C "$$dir" setup; \
+			else \
+				echo "Skipping $$dir (no setup target)"; \
+			fi; \
 		fi; \
 	done
 	@echo "==> Setup Complete!"
