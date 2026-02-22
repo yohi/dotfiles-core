@@ -171,7 +171,7 @@ Per `opencode.jsonc` (when present), these operations are blocked for agent exec
 | `repos.yaml` | Repository manifest for vcstool |
 | `SPEC.md` | Detailed specification and requirements |
 | `GEMINI.md` | Project context for Gemini CLI |
-| `COMPONENT_LAYOUT.md` | Component directory/file structure convention (all repos must comply) |
+| `docs/ARCHITECTURE.md` | Component directory/file structure convention (all repos must comply) |
 
 ## COMMON TASKS
 
