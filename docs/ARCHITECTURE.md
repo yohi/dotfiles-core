@@ -1,6 +1,6 @@
 # Component Layout Convention（コンポーネント配置規約）
 
-> **対象**: `components/` 配下の全マイクロリポジトリ（dotfiles-zsh, dotfiles-vim, dotfiles-git, dotfiles-term, dotfiles-ide, dotfiles-ai, dotfiles-gnome, dotfiles-system）
+> **対象**: `components/` 配下の全マイクロリポジトリ
 
 ## 概要
 
@@ -19,6 +19,7 @@ dotfiles-<name>/
 ├── Makefile                     # [必須] setup ターゲットを含むエントリポイント
 ├── README.md                    # [必須] コンポーネント概要
 ├── LICENSE                      # [必須] ライセンスファイル
+├── AGENTS.md                    # [必須] AIエージェントへの指示・タスク定義
 │
 ├── _mk/                          # [任意] Makefile を機能ごとに分割する場合
 │   ├── <feature-a>.mk
@@ -39,8 +40,8 @@ dotfiles-<name>/
 ├── <tool-specific-dir>/         # [Stow対象] ツール固有の設定ディレクトリ
 │   └── ...                      #   例: starship/, prompts/, claude/, opencode/
 │
-└── .<dotfile>                   # [Stow対象] ドットファイル（~/ 直下にリンクされる）
-                                 #   例: .zshrc, .zsh_env
+└── dot-<file>                   # [Stow対象] ドットファイル（Stowの --dotfiles で展開）
+                                 #   例: dot-zshrc -> ~/.zshrc
 ```
 
 ---
@@ -55,11 +56,12 @@ dotfiles-<name>/
 | `.stow-local-ignore` | Stow がリンクしないファイル/ディレクトリを列挙 | 後述の.stow-local-ignore規約に従う |
 | `README.md` | コンポーネントの概要・使い方 | 日本語で記述 |
 | `LICENSE` | ライセンス | MIT |
+| `AGENTS.md` | AIエージェントへの指示・タスク定義 | — |
 | `.gitignore` | Git 除外ルール | — |
 
 ### Stow 対象ファイル（`~` にリンクされるもの）
 
-リポジトリ直下に置かれたドットファイル（`.zshrc` 等）やディレクトリは、`.stow-local-ignore` で除外されない限り `~` にシンボリックリンクされる。
+リポジトリ直下に置かれたファイル（`dot-zshrc` など）やディレクトリは、`.stow-local-ignore` で除外されない限り `~` にシンボリックリンクされる。隠しファイルとして配置したい設定ファイルのファイル名には `dot-` プレフィックスを付けること（Stow の `--dotfiles` オプションにより `~/.zshrc` 等の隠しファイルとして展開される）。
 
 **原則**: Stow が `~` に展開するファイルは、ユーザーの `$HOME` に直接必要な設定ファイルのみ。
 
@@ -81,8 +83,6 @@ dotfiles-<name>/
 | `tests/` | テスト |
 | `archive/` | アーカイブ |
 | `examples/` | 設定例 |
-| `agent-skills/` | AI エージェント用スキル定義 |
-| `config/` | コンポーネント内部設定（Stow展開不要の場合） |
 
 ---
 
@@ -111,8 +111,6 @@ docs
 tests
 archive
 examples
-agent-skills
-config
 bin
 ```
 
@@ -181,70 +179,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 - ハードコードされた絶対パス（例: `~/dotfiles/components/dotfiles-zsh/...`）
 - モノレポ時代の `$DOTFILES_DIR` による参照
-
----
-
-## コンポーネント固有のガイドライン
-
-### dotfiles-zsh
-
-```text
-dotfiles-zsh/
-├── .zshrc                  # [Stow] メイン設定
-├── .zsh_env                # [Stow] 環境変数
-├── .zsh_secrets.example    # [Stow] シークレットテンプレート
-├── config/                 # [非Stow] 内部設定・テンプレート
-├── functions/              # [非Stow] Zsh 関数ライブラリ（sourceで読み込み）
-├── prompts/                # [非Stow] プロンプト設定
-└── starship/               # [非Stow] Starship 設定（別途シンボリックリンク or source）
-```
-
-### dotfiles-git
-
-```text
-dotfiles-git/
-├── bin/                    # [非Stow] lazygit AI スクリプト等の公開コマンド
-├── scripts/                # [非Stow] 内部ヘルパー
-├── docs/                   # [非Stow] ドキュメント
-├── tests/                  # [非Stow] テスト
-├── examples/               # [非Stow] 設定例
-└── archive/                # [非Stow] 過去の実装ログ
-```
-
-### dotfiles-ai
-
-```text
-dotfiles-ai/
-├── _mk/                    # [非Stow] Makefile 分割（claude.mk, gemini.mk, ...）
-├── agent-skills/           # [非Stow] AI エージェント用スキル定義
-├── claude/                 # [非Stow] Claude Code 設定
-├── codex/                  # [非Stow] OpenAI Codex 設定
-├── gemini/                 # [非Stow] Gemini CLI 設定
-└── opencode/               # [非Stow] Opencode 設定
-```
-
-### dotfiles-gnome
-
-```text
-dotfiles-gnome/
-├── _mk/                    # [非Stow] Makefile 分割（gnome.mk, mozc.mk, ...）
-├── gnome-extensions/       # [非Stow] GNOME 拡張インストールスクリプト
-├── gnome-settings/         # [非Stow] dconf エクスポート
-├── gnome-shortcuts/        # [非Stow] ショートカット設定
-├── mozc/                   # [非Stow] Mozc 入力設定
-└── sticky-keys/            # [非Stow] スティッキーキー無効化
-```
-
-### dotfiles-system
-
-```text
-dotfiles-system/
-├── _mk/                    # [非Stow] Makefile 分割（system.mk, install.mk, ...）
-├── scripts/                # [非Stow] セットアップ・メンテナンススクリプト
-├── docs/                   # [非Stow] ドキュメント
-├── logid/                  # [非Stow] Logitech デバイス設定
-└── Brewfile                # [非Stow] Homebrew パッケージリスト
-```
 
 ---
 
