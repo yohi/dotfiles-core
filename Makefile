@@ -9,16 +9,16 @@ STOW_TARGET := $(HOME)
 help:
 	@echo "Usage: make [target]"
 	@echo "Targets:"
-	@echo "  init     Install dependencies (vcstool, stow, jq) and clone repos"
+	@echo "  init     Install dependencies (vcstool, jq, curl) and clone repos"
 	@echo "  sync     Update all components using vcstool"
-	@echo "  link     Apply symbolic links using GNU Stow"
+	@echo "  link     Apply symbolic links (delegated to components)"
 	@echo "  secrets  Fetch credentials from Bitwarden"
 	@echo "  setup    Run full setup sequence including component delegation"
 	@echo "  clean    Remove generated files and reset state"
 
 init:
 	@echo "==> Initializing dependencies..."
-	sudo apt-get update && sudo apt-get install -y python3-pip stow jq curl
+	sudo apt-get update && sudo apt-get install -y python3-pip jq curl
 	pip3 install --user vcstool
 	mkdir -p $(COMPONENTS_DIR)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
@@ -30,12 +30,16 @@ sync:
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
 link:
-	@echo "==> Linking components with GNU Stow..."
-	@for dir in $(COMPONENTS_DIR)/*; do \
-		[ -d "$$dir" ] || continue; \
-		name=$$(basename "$$dir"); \
-		echo "Stowing $$name..."; \
-		stow --restow --target=$(STOW_TARGET) --dir=$(COMPONENTS_DIR) "$$name"; \
+	@echo "==> Delegating link to components..."
+	@for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
+		if [ -f "$$dir/Makefile" ]; then \
+			if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
+				echo "Running make link in $$dir..."; \
+				$(MAKE) -C "$$dir" link || true; \
+			else \
+				echo "Skipping $$dir (no link target)"; \
+			fi; \
+		fi; \
 	done
 
 secrets:
