@@ -19,10 +19,13 @@ help:
 
 init:
 	@echo "==> Initializing dependencies..."
-	sudo apt-get update && sudo apt-get install -y python3-pip jq curl
-	pip3 install --user vcstool
+	sudo apt-get update && sudo apt-get install -y python3-pip jq curl vcstool python3-setuptools
+	# vcstool should already be available via apt; installing via pip3 only as fallback or if specifically needed
+	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	# PATH inclusion for potential local installs
+	export PATH="$(HOME)/.local/bin:$$PATH"; \
+	vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
 
 sync:
 	@echo "==> Syncing all components..."
