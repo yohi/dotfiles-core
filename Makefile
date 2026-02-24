@@ -36,6 +36,7 @@ sync:
 link:
 	@echo "==> Delegating link to components..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		[ -f .bw_session ] && export BW_SESSION=$$(cat .bw_session); \
 		fail_count=0; \
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
@@ -59,15 +60,50 @@ link:
 
 secrets:
 	@echo "==> Resolving secrets via Bitwarden CLI..."
-	# ここに bw login / unlock などのロジックを実装予定
-	@if ! command -v bw > /dev/null; then \
+	@if [ "$${WITH_BW:-0}" != "1" ]; then \
+		echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable." >&2; \
+		exit 0; \
+	fi; \
+	if ! command -v bw > /dev/null; then \
 		echo "Bitwarden CLI (bw) not found. Please install it." >&2; \
+		exit 1; \
+	fi; \
+	if ! command -v jq > /dev/null; then \
+		echo "jq is required to parse Bitwarden status. Please install it." >&2; \
+		exit 1; \
+	fi; \
+	status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
+	if [ "$$status" = "unauthenticated" ]; then \
+		echo "==> Authenticating Bitwarden..." >&2; \
+		bw login; \
+		status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
+	fi; \
+	if [ "$$status" = "locked" ]; then \
+		echo "==> Unlocking Bitwarden vault..." >&2; \
+		session=$$(bw unlock --raw); \
+		if [ -n "$$session" ]; then \
+			echo "$$session" > .bw_session; \
+			chmod 600 .bw_session; \
+			echo "[OK] Vault unlocked. Session saved to .bw_session"; \
+		else \
+			echo "[ERROR] Failed to unlock Bitwarden vault." >&2; \
+			exit 1; \
+		fi; \
+	elif [ "$$status" = "unlocked" ]; then \
+		echo "[OK] Bitwarden vault is already unlocked."; \
+		if [ -n "$$BW_SESSION" ]; then \
+			echo "$$BW_SESSION" > .bw_session; \
+			chmod 600 .bw_session; \
+		fi; \
+	else \
+		echo "[ERROR] Bitwarden status error: $$status" >&2; \
 		exit 1; \
 	fi
 
 setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		[ -f .bw_session ] && export BW_SESSION=$$(cat .bw_session); \
 		fail_count=0; \
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \

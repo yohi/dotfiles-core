@@ -87,8 +87,8 @@ sequenceDiagram
     CurlBash->>CoreMake: git clone dotfiles-core && make setup
     CoreMake->>VCS: vcs import components/ < repos.yaml
     VCS-->>CoreMake: Parallel Clone All Repos
-    CoreMake->>BW: bw login && bw unlock (planned/予定)
-    BW-->>CoreMake: Fetch Secrets & Write to Memory/Temp (planned/予定)
+    CoreMake->>BW: bw login && bw unlock
+    BW-->>CoreMake: Fetch Secrets & Write to Memory/Temp
     CoreMake->>SubMake: foreach dir: make link
     SubMake->>SubMake: Execute `ln -sfn` for specific paths
     CoreMake->>SubMake: foreach dir: make setup
@@ -177,7 +177,7 @@ repositories:
 | :---- | :---- |
 | make init | 依存関係（vcstool, jq 等）をインストールし、リポジトリを初期クローンする。 |
 | make sync | vcs import components/ < repos.yaml 及び vcs pull で全コンポーネントを最新化する。 |
-| make secrets | Bitwarden CLI を呼び出し、クレデンシャルをローカルに安全に展開する。(planned/予定) |
+| make secrets | Bitwarden CLI を呼び出し、クレデンシャルをローカルに安全に展開する。 |
 | make link | components/ 以下の全ディレクトリをループし、Makefile があれば make link を委譲する。 |
 | make setup | components/ 以下の全ディレクトリをループし、Makefile があれば make setup を委譲する。 |
 
