@@ -66,13 +66,18 @@ link:
 	@echo "==> Delegating link to components..."
 	$(call dispatch,link)
 
-secrets: _check_bw_tools _ensure_bw_auth _unlock_bw
+ifeq ($(WITH_BW),1)
+SECRETS_DEPS := _check_bw_tools _ensure_bw_auth _unlock_bw
+else
+SECRETS_DEPS := _skip_secrets
+endif
+
+secrets: $(SECRETS_DEPS)
+
+_skip_secrets:
+	@echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable."
 
 _check_bw_tools:
-	@if [ "$${WITH_BW:-0}" != "1" ]; then \
-		echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable." >&2; \
-		exit 0; \
-	fi
 	@command -v bw >/dev/null 2>&1 || { echo "Bitwarden CLI (bw) not found." >&2; exit 1; }
 	@command -v jq >/dev/null 2>&1 || { echo "jq not found." >&2; exit 1; }
 
@@ -107,6 +112,9 @@ _unlock_bw:
 			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION"; exit 1; }; \
 		fi; \
 		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to update session" >&2; exit 1; }; \
+	else \
+		echo "[ERROR] Unexpected Bitwarden status: $$status" >&2; \
+		exit 1; \
 	fi
 
 setup: init sync secrets
