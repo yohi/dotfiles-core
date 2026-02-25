@@ -78,7 +78,7 @@ init: $(REPOS_YAML_RESOLVED)
 	fi
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
+		$$SUDO apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
 	fi
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
