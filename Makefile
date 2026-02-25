@@ -65,14 +65,14 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 	@cp $(REPOS_YAML) $@
 	@if [ "$(USE_HTTPS)" = "1" ]; then \
 		echo -e "$(BLUE)==> Forcing HTTPS as requested...$(NC)"; \
-		sed -i 's|git@github.com:|https://github.com/|g' $@; \
+		sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
 	else \
 		echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"; \
 		ssh -o ConnectTimeout=$(SSH_CONNECT_TIMEOUT) -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 		ret=$$?; \
 		if [ $$ret -eq 255 ]; then \
 			echo -e "$(YELLOW)    SSH connection failed (code $$ret), falling back to HTTPS...$(NC)"; \
-			sed -i 's|git@github.com:|https://github.com/|g' $@; \
+			sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
 		else \
 			echo -e "$(GREEN)    SSH connection successful (code $$ret).$(NC)"; \
 		fi; \
@@ -146,7 +146,7 @@ _unlock_bw: _ensure_bw_auth
 		echo -e "$(GREEN)[OK] Bitwarden vault is already unlocked.$(NC)"; \
 		if [ -z "$$BW_SESSION" ]; then \
 			echo -e "$(YELLOW)[WARN] BW_SESSION not set, obtaining session...$(NC)"; \
-			BW_SESSION=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] failed to obtain BW_SESSION$(NC)"; exit 1; }; \
+			BW_SESSION=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] failed to obtain BW_SESSION$(NC)" >&2; exit 1; }; \
 		fi; \
 		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo -e "$(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
 	else \
