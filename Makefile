@@ -31,7 +31,8 @@ define dispatch
 	fi
 endef
 
-.PHONY: help init sync link secrets setup clean
+.PHONY: help init sync link secrets setup clean \
+        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety
 
 help:
 	@echo "Usage: make [target]"
@@ -77,7 +78,7 @@ secrets: init $(SECRETS_DEPS)
 _skip_secrets:
 	@echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable."
 
-_check_bw_tools:
+_check_bw_tools: init
 	@command -v bw >/dev/null 2>&1 || { echo "Bitwarden CLI (bw) not found." >&2; exit 1; }
 	@command -v jq >/dev/null 2>&1 || { echo "jq not found." >&2; exit 1; }
 
