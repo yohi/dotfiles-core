@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install minimal bootstrap requirements
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     git \
     sudo \
@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a test user
+# Create a test user with NOPASSWD sudo access
 RUN useradd -m -s /bin/bash testuser && \
-    echo "testuser:testuser" | chpasswd && \
-    adduser testuser sudo && \
-    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    usermod -aG sudo testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/testuser && \
+    chmod 0440 /etc/sudoers.d/testuser
 
 USER testuser
 WORKDIR /home/testuser/dotfiles-core

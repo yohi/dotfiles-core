@@ -13,14 +13,14 @@ cd "$TEST_WORKSPACE"
 # This preserves local changes made during the test
 if [ -d components ]; then
     echo "==> [Test] Converting component remotes to HTTPS..."
-    find components -maxdepth 2 -name .git -type d | while read gitdir; do
+    find components -maxdepth 2 -name .git -type d | while IFS= read -r gitdir; do
         repo_dir=$(dirname "$gitdir")
         pushd "$repo_dir" >/dev/null
-        remote_url=$(git remote get-url origin 2>/dev/null)
-        if [[ $remote_url == git@github.com:* ]]; then
-            new_url=$(echo $remote_url | sed 's|git@github.com:|https://github.com/|')
+        remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+        if [[ "$remote_url" == git@github.com:* ]]; then
+            new_url="${remote_url/git@github.com:/https://github.com/}"
             git remote set-url origin "$new_url"
-            echo "    Updated $repo_dir: $remote_url -> $new_url"
+            echo "    Updated \"$repo_dir\": \"$remote_url\" -> \"$new_url\""
         fi
         popd >/dev/null
     done
@@ -56,27 +56,3 @@ fi
 echo "[OK] No nested components directory."
 
 echo "==> [Test] Integration tests PASSED!"
-
-
-# GitHub Actions Workflow Configuration:
-# ----------------------------------------
-# name: Integration Test
-# on:
-#   push:
-#     branches: [ main, master ]
-#   pull_request:
-#     branches: [ main, master ]
-#   workflow_dispatch:
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
-#         with:
-#           fetch-depth: 0
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v3
-#       - name: Run Integration Tests
-#         run: |
-#           make test WITH_BW=0 SKIP_FONTS=1

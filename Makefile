@@ -45,9 +45,8 @@ define dispatch
 	fi
 endef
 
-.PHONY: help init sync link secrets setup clean \
-        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety \
-        $(REPOS_YAML_RESOLVED)
+.PHONY: help init sync link secrets setup clean test \
+        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety
 
 help:
 	@echo -e "$(BLUE)Usage: make [target]$(NC)"
@@ -60,14 +59,23 @@ help:
 	@echo "  test     Run integration tests using Docker"
 	@echo "  clean    Remove generated files and reset state"
 
+SSH_CONNECT_TIMEOUT ?= 3
+
 $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 	@cp $(REPOS_YAML) $@
-	@echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"
-	@if ! ssh -o ConnectTimeout=5 -o BatchMode=yes -T git@github.com 2>&1 | grep -q "Hi "; then \
-		echo -e "$(YELLOW)    SSH connection failed, falling back to HTTPS...$(NC)"; \
+	@if [ "$(USE_HTTPS)" = "1" ]; then \
+		echo -e "$(BLUE)==> Forcing HTTPS as requested...$(NC)"; \
 		sed -i 's|git@github.com:|https://github.com/|g' $@; \
 	else \
-		echo -e "$(GREEN)    SSH connection successful.$(NC)"; \
+		echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"; \
+		ssh -o ConnectTimeout=$(SSH_CONNECT_TIMEOUT) -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
+		ret=$$?; \
+		if [ $$ret -eq 255 ]; then \
+			echo -e "$(YELLOW)    SSH connection failed (code $$ret), falling back to HTTPS...$(NC)"; \
+			sed -i 's|git@github.com:|https://github.com/|g' $@; \
+		else \
+			echo -e "$(GREEN)    SSH connection successful (code $$ret).$(NC)"; \
+		fi; \
 	fi
 
 init: $(REPOS_YAML_RESOLVED)
@@ -83,12 +91,12 @@ init: $(REPOS_YAML_RESOLVED)
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
 	# PATH inclusion for potential local installs
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import < $(REPOS_YAML_RESOLVED)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 
 sync: init $(REPOS_YAML_RESOLVED)
 	@echo -e "$(BLUE)==> Syncing all components...$(NC)"
 	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import < $(REPOS_YAML_RESOLVED)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
 link:

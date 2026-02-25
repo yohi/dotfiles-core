@@ -12,6 +12,3 @@ components/
 
 # dots
 dots
-
-# Ignore injected files in components
-components/**/_mk/idempotency.mk
