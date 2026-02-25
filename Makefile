@@ -5,6 +5,32 @@ COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml
 STOW_TARGET := $(HOME)
 
+# Reusable macro to dispatch a target to all components
+define dispatch
+	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		if [ -f .bw_session ]; then export BW_SESSION=$$(cat .bw_session); fi; \
+		fail_count=0; \
+		total_count=0; \
+		while IFS= read -r -d '' dir; do \
+			if [ -f "$$dir/Makefile" ]; then \
+				if $(MAKE) -C "$$dir" -n $(1) >/dev/null 2>&1; then \
+					total_count=$$((total_count+1)); \
+					echo "Running make $(1) in $$dir..."; \
+					if ! $(MAKE) -C "$$dir" $(1); then \
+						echo "WARNING: make $(1) failed in $$dir" >&2; \
+						fail_count=$$((fail_count+1)); \
+					fi; \
+				else \
+					echo "Skipping $$dir (no $(1) target)"; \
+				fi; \
+			fi; \
+		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		echo "---"; \
+		echo "Summary for $(1): $$total_count components attempted, $$fail_count failures."; \
+		if [ $$fail_count -gt 0 ]; then exit 1; fi; \
+	fi
+endef
+
 .PHONY: help init sync link secrets setup clean
 
 help:
@@ -36,27 +62,7 @@ sync:
 
 link:
 	@echo "==> Delegating link to components..."
-	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		fail_count=0; \
-		total_count=0; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
-				if $(MAKE) -C "$$dir" -n link >/dev/null 2>&1; then \
-					total_count=$$((total_count+1)); \
-					echo "Running make link in $$dir..."; \
-					if ! $(MAKE) -C "$$dir" link; then \
-						echo "WARNING: make link failed in $$dir" >&2; \
-						fail_count=$$((fail_count+1)); \
-					fi; \
-				else \
-					echo "Skipping $$dir (no link target)"; \
-				fi; \
-			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
-		echo "---"; \
-		echo "Summary: $$total_count components attempted, $$fail_count failures."; \
-		if [ $$fail_count -gt 0 ]; then exit 1; fi; \
-	fi
+	$(call dispatch,link)
 
 secrets:
 	@echo "==> Resolving secrets via Bitwarden CLI..."
@@ -72,7 +78,12 @@ secrets:
 		echo "jq is required to parse Bitwarden status. Please install it." >&2; \
 		exit 1; \
 	fi; \
-	status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
+	status_json=$$(bw status 2>/dev/null) || { echo "[ERROR] Bitwarden CLI 'bw status' failed. Is it installed correctly?" >&2; exit 1; }; \
+	status=$$(echo "$$status_json" | jq -r '.status' 2>/dev/null || echo "error"); \
+	if [ "$$status" = "error" ]; then \
+		echo "[ERROR] Failed to parse Bitwarden status. raw output: $$status_json" >&2; \
+		exit 1; \
+	fi; \
 	if [ "$$status" = "unauthenticated" ]; then \
 		echo "==> Authenticating Bitwarden..." >&2; \
 		if ! bw login; then \
@@ -80,63 +91,41 @@ secrets:
 			exit 1; \
 		fi; \
 		status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
-		if [ "$$status" = "unauthenticated" ]; then \
-			echo "[ERROR] Bitwarden login succeeded but status is still unauthenticated" >&2; \
+		if [ "$$status" = "unauthenticated" ] || [ "$$status" = "error" ]; then \
+			echo "[ERROR] Bitwarden login state invalid (status: $$status)" >&2; \
 			exit 1; \
 		fi; \
 	fi; \
 	if [ "$$status" = "locked" ]; then \
 		echo "==> Unlocking Bitwarden vault..." >&2; \
-		session=$$(bw unlock --raw); \
+		session=$$(bw unlock --raw) || { echo "[ERROR] Bitwarden unlock failed or timed out." >&2; exit 1; }; \
 		if [ -n "$$session" ]; then \
-			echo "$$session" > .bw_session; \
-			chmod 600 .bw_session; \
+			echo "$$session" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to save session to .bw_session" >&2; exit 1; }; \
 			echo "[OK] Vault unlocked. Session saved to .bw_session"; \
 		else \
-			echo "[ERROR] Failed to unlock Bitwarden vault." >&2; \
+			echo "[ERROR] Failed to obtain Bitwarden session key." >&2; \
 			exit 1; \
 		fi; \
 	elif [ "$$status" = "unlocked" ]; then \
 		echo "[OK] Bitwarden vault is already unlocked."; \
 		if [ -z "$$BW_SESSION" ]; then \
 			echo "[WARN] BW_SESSION not set, obtaining session..."; \
-			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION"; exit 1; }; \
+			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION (check master password)"; exit 1; }; \
 		fi; \
-		echo "$$BW_SESSION" > .bw_session; \
-		chmod 600 .bw_session; \
+		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to update .bw_session" >&2; exit 1; }; \
 	else \
 		echo "[ERROR] Bitwarden status error: $$status" >&2; \
 		exit 1; \
 	fi
 
-setup: init sync secrets link
+setup: init sync secrets
 	@echo "==> Delegating to component-specific setup..."
-	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		if [ -f .bw_session ]; then export BW_SESSION=$$(cat .bw_session); fi; \
-		fail_count=0; \
-		total_count=0; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
-				if $(MAKE) -C "$$dir" -n setup >/dev/null 2>&1; then \
-					total_count=$$((total_count+1)); \
-					echo "Running make setup in $$dir..."; \
-					if ! $(MAKE) -C "$$dir" setup; then \
-						echo "WARNING: make setup failed in $$dir" >&2; \
-						fail_count=$$((fail_count+1)); \
-					fi; \
-				else \
-					echo "Skipping $$dir (no setup target)"; \
-				fi; \
-			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
-		echo "---"; \
-		echo "Summary: $$total_count components attempted, $$fail_count failures."; \
-		if [ $$fail_count -gt 0 ]; then exit 1; fi; \
-	fi
+	$(call dispatch,setup)
 	@echo "==> Setup Complete!"
 
 clean:
 	@echo "==> Cleaning up components (CAUTION)..."
+	@rm -f .bw_session
 	@if [ -z "$(COMPONENTS_DIR)" ] || [ "$(COMPONENTS_DIR)" = "/" ] || [ "$(COMPONENTS_DIR)" = "." ] || [ "$(COMPONENTS_DIR)" = ".." ]; then \
 		echo "ERROR: unsafe COMPONENTS_DIR='$(COMPONENTS_DIR)'"; \
 		exit 1; \
