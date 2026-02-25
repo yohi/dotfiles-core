@@ -3,6 +3,7 @@ SHELL := /bin/bash
 
 COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml
+REPOS_YAML_RESOLVED := .repos.resolved.yaml
 STOW_TARGET := $(HOME)
 
 # Reusable macro to dispatch a target to all components
@@ -32,7 +33,8 @@ define dispatch
 endef
 
 .PHONY: help init sync link secrets setup clean \
-        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety
+        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety \
+        $(REPOS_YAML_RESOLVED)
 
 help:
 	@echo "Usage: make [target]"
@@ -44,7 +46,17 @@ help:
 	@echo "  setup    Run full setup sequence including component delegation"
 	@echo "  clean    Remove generated files and reset state"
 
-init:
+$(REPOS_YAML_RESOLVED): $(REPOS_YAML)
+	@cp $(REPOS_YAML) $@
+	@echo "==> Checking SSH connectivity to GitHub..."
+	@if ! ssh -o ConnectTimeout=5 -o BatchMode=yes -T git@github.com 2>&1 | grep -q "Hi "; then \
+		echo "    SSH connection failed, falling back to HTTPS..."; \
+		sed -i 's|git@github.com:|https://github.com/|g' $@; \
+	else \
+		echo "    SSH connection successful."; \
+	fi
+
+init: $(REPOS_YAML_RESOLVED)
 	@echo "==> Initializing dependencies..."
 	@if command -v apt-get >/dev/null 2>&1; then \
 		sudo apt-get update && sudo apt-get install -y python3-pip jq curl python3-setuptools; \
@@ -55,12 +67,12 @@ init:
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
 	# PATH inclusion for potential local installs
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 
-sync: init
+sync: init $(REPOS_YAML_RESOLVED)
 	@echo "==> Syncing all components..."
 	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
 link:
@@ -125,7 +137,7 @@ setup: sync secrets
 
 clean:
 	@echo "==> Cleaning up session and components..."
-	@rm -f .bw_session
+	@rm -f .bw_session $(REPOS_YAML_RESOLVED)
 	@$(MAKE) .clean-safety
 
 .clean-safety:
