@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during apt-get
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install minimal bootstrap requirements
+RUN apt-get update && apt-get install -y \
+    make \
+    git \
+    sudo \
+    curl \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a test user
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser:testuser" | chpasswd && \
+    adduser testuser sudo && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER testuser
+WORKDIR /home/testuser/dotfiles-core
