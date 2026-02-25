@@ -19,13 +19,14 @@ help:
 
 init:
 	@echo "==> Initializing dependencies..."
-	sudo apt-get update && sudo apt-get install -y python3-pip jq curl vcstool python3-setuptools
-	# vcstool should already be available via apt; installing via pip3 only as fallback or if specifically needed
+	sudo apt-get update && sudo apt-get install -y python3-pip jq curl python3-setuptools || true
+	if ! command -v vcs >/dev/null 2>&1; then \
+		sudo apt-get install -y vcstool || pip3 install --user vcstool || { echo "ERROR: failed to install vcstool" >&2; exit 1; }; \
+	fi
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
 	# PATH inclusion for potential local installs
-	export PATH="$(HOME)/.local/bin:$$PATH"; \
-	vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
 
 sync:
 	@echo "==> Syncing all components..."
@@ -36,7 +37,6 @@ sync:
 link:
 	@echo "==> Delegating link to components..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		[ -f .bw_session ] && export BW_SESSION=$$(cat .bw_session); \
 		fail_count=0; \
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
@@ -75,8 +75,15 @@ secrets:
 	status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "unauthenticated" ]; then \
 		echo "==> Authenticating Bitwarden..." >&2; \
-		bw login; \
+		if ! bw login; then \
+			echo "[ERROR] Bitwarden login failed" >&2; \
+			exit 1; \
+		fi; \
 		status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
+		if [ "$$status" = "unauthenticated" ]; then \
+			echo "[ERROR] Bitwarden login succeeded but status is still unauthenticated" >&2; \
+			exit 1; \
+		fi; \
 	fi; \
 	if [ "$$status" = "locked" ]; then \
 		echo "==> Unlocking Bitwarden vault..." >&2; \
@@ -91,10 +98,12 @@ secrets:
 		fi; \
 	elif [ "$$status" = "unlocked" ]; then \
 		echo "[OK] Bitwarden vault is already unlocked."; \
-		if [ -n "$$BW_SESSION" ]; then \
-			echo "$$BW_SESSION" > .bw_session; \
-			chmod 600 .bw_session; \
+		if [ -z "$$BW_SESSION" ]; then \
+			echo "[WARN] BW_SESSION not set, obtaining session..."; \
+			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION"; exit 1; }; \
 		fi; \
+		echo "$$BW_SESSION" > .bw_session; \
+		chmod 600 .bw_session; \
 	else \
 		echo "[ERROR] Bitwarden status error: $$status" >&2; \
 		exit 1; \
@@ -103,7 +112,7 @@ secrets:
 setup: init sync secrets link
 	@echo "==> Delegating to component-specific setup..."
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		[ -f .bw_session ] && export BW_SESSION=$$(cat .bw_session); \
+		if [ -f .bw_session ]; then export BW_SESSION=$$(cat .bw_session); fi; \
 		fail_count=0; \
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
