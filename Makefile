@@ -56,7 +56,7 @@ init:
 	# PATH inclusion for potential local installs
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
 
-sync:
+sync: init
 	@echo "==> Syncing all components..."
 	mkdir -p $(COMPONENTS_DIR)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML)
@@ -72,7 +72,7 @@ else
 SECRETS_DEPS := _skip_secrets
 endif
 
-secrets: $(SECRETS_DEPS)
+secrets: sync $(SECRETS_DEPS)
 
 _skip_secrets:
 	@echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable."
@@ -117,7 +117,7 @@ _unlock_bw: _ensure_bw_auth
 		exit 1; \
 	fi
 
-setup: init sync secrets
+setup: secrets
 	@echo "==> Delegating to component-specific setup..."
 	$(call dispatch,setup)
 	@echo "==> Setup Complete!"
