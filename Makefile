@@ -67,7 +67,7 @@ link:
 	$(call dispatch,link)
 
 ifeq ($(WITH_BW),1)
-SECRETS_DEPS := _check_bw_tools _ensure_bw_auth _unlock_bw
+SECRETS_DEPS := _unlock_bw
 else
 SECRETS_DEPS := _skip_secrets
 endif
@@ -81,7 +81,7 @@ _check_bw_tools:
 	@command -v bw >/dev/null 2>&1 || { echo "Bitwarden CLI (bw) not found." >&2; exit 1; }
 	@command -v jq >/dev/null 2>&1 || { echo "jq not found." >&2; exit 1; }
 
-_ensure_bw_auth:
+_ensure_bw_auth: _check_bw_tools
 	@echo "==> Verifying Bitwarden authentication..."
 	@status_json=$$(bw status 2>/dev/null) || { echo "[ERROR] Bitwarden CLI 'bw status' failed." >&2; exit 1; }; \
 	status=$$(echo "$$status_json" | jq -r '.status' 2>/dev/null || echo "error"); \
@@ -94,7 +94,7 @@ _ensure_bw_auth:
 		bw login || { echo "[ERROR] Bitwarden login failed" >&2; exit 1; }; \
 	fi
 
-_unlock_bw:
+_unlock_bw: _ensure_bw_auth
 	@status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "locked" ]; then \
 		echo "==> Unlocking Bitwarden vault..." >&2; \
@@ -123,13 +123,16 @@ setup: init sync secrets
 	@echo "==> Setup Complete!"
 
 clean:
-	@echo "==> Cleaning up components (CAUTION)..."
+	@echo "==> Cleaning up session and components..."
 	@rm -f .bw_session
+	@$(MAKE) .clean-safety
+
+.clean-safety:
 	@if [ -z "$(COMPONENTS_DIR)" ] || [ "$(COMPONENTS_DIR)" = "/" ] || [ "$(COMPONENTS_DIR)" = "." ] || [ "$(COMPONENTS_DIR)" = ".." ]; then \
 		echo "ERROR: unsafe COMPONENTS_DIR='$(COMPONENTS_DIR)'"; \
 		exit 1; \
 	elif [ ! -d "$(COMPONENTS_DIR)" ]; then \
-		echo "==> Skip clean: directory '$(COMPONENTS_DIR)' not found."; \
+		echo "==> Skip component clean: directory '$(COMPONENTS_DIR)' not found."; \
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
