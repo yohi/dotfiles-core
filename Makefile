@@ -72,7 +72,7 @@ else
 SECRETS_DEPS := _skip_secrets
 endif
 
-secrets: sync $(SECRETS_DEPS)
+secrets: init $(SECRETS_DEPS)
 
 _skip_secrets:
 	@echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable."
@@ -117,7 +117,7 @@ _unlock_bw: _ensure_bw_auth
 		exit 1; \
 	fi
 
-setup: secrets
+setup: sync secrets
 	@echo "==> Delegating to component-specific setup..."
 	$(call dispatch,setup)
 	@echo "==> Setup Complete!"
