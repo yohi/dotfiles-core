@@ -45,9 +45,11 @@ help:
 
 init:
 	@echo "==> Initializing dependencies..."
-	sudo apt-get update && sudo apt-get install -y python3-pip jq curl python3-setuptools || true
-	if ! command -v vcs >/dev/null 2>&1; then \
-		sudo apt-get install -y vcstool || pip3 install --user vcstool || { echo "ERROR: failed to install vcstool" >&2; exit 1; }; \
+	@if command -v apt-get >/dev/null 2>&1; then \
+		sudo apt-get update && sudo apt-get install -y python3-pip jq curl python3-setuptools; \
+	fi
+	@if ! command -v vcs >/dev/null 2>&1; then \
+		sudo apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool || { echo "ERROR: failed to install vcstool" >&2; exit 1; }; \
 	fi
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
@@ -64,58 +66,47 @@ link:
 	@echo "==> Delegating link to components..."
 	$(call dispatch,link)
 
-secrets:
-	@echo "==> Resolving secrets via Bitwarden CLI..."
+secrets: _check_bw_tools _ensure_bw_auth _unlock_bw
+
+_check_bw_tools:
 	@if [ "$${WITH_BW:-0}" != "1" ]; then \
 		echo "[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable." >&2; \
 		exit 0; \
-	fi; \
-	if ! command -v bw > /dev/null; then \
-		echo "Bitwarden CLI (bw) not found. Please install it." >&2; \
-		exit 1; \
-	fi; \
-	if ! command -v jq > /dev/null; then \
-		echo "jq is required to parse Bitwarden status. Please install it." >&2; \
-		exit 1; \
-	fi; \
-	status_json=$$(bw status 2>/dev/null) || { echo "[ERROR] Bitwarden CLI 'bw status' failed. Is it installed correctly?" >&2; exit 1; }; \
+	fi
+	@command -v bw >/dev/null 2>&1 || { echo "Bitwarden CLI (bw) not found." >&2; exit 1; }
+	@command -v jq >/dev/null 2>&1 || { echo "jq not found." >&2; exit 1; }
+
+_ensure_bw_auth:
+	@echo "==> Verifying Bitwarden authentication..."
+	@status_json=$$(bw status 2>/dev/null) || { echo "[ERROR] Bitwarden CLI 'bw status' failed." >&2; exit 1; }; \
 	status=$$(echo "$$status_json" | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "error" ]; then \
-		echo "[ERROR] Failed to parse Bitwarden status. raw output: $$status_json" >&2; \
+		echo "[ERROR] Failed to parse Bitwarden status. Check your installation." >&2; \
 		exit 1; \
 	fi; \
 	if [ "$$status" = "unauthenticated" ]; then \
 		echo "==> Authenticating Bitwarden..." >&2; \
-		if ! bw login; then \
-			echo "[ERROR] Bitwarden login failed" >&2; \
-			exit 1; \
-		fi; \
-		status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
-		if [ "$$status" = "unauthenticated" ] || [ "$$status" = "error" ]; then \
-			echo "[ERROR] Bitwarden login state invalid (status: $$status)" >&2; \
-			exit 1; \
-		fi; \
-	fi; \
+		bw login || { echo "[ERROR] Bitwarden login failed" >&2; exit 1; }; \
+	fi
+
+_unlock_bw:
+	@status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "locked" ]; then \
 		echo "==> Unlocking Bitwarden vault..." >&2; \
 		session=$$(bw unlock --raw) || { echo "[ERROR] Bitwarden unlock failed or timed out." >&2; exit 1; }; \
 		if [ -n "$$session" ]; then \
-			echo "$$session" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to save session to .bw_session" >&2; exit 1; }; \
+			echo "$$session" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to save session" >&2; exit 1; }; \
 			echo "[OK] Vault unlocked. Session saved to .bw_session"; \
 		else \
-			echo "[ERROR] Failed to obtain Bitwarden session key." >&2; \
-			exit 1; \
+			echo "[ERROR] Failed to obtain Bitwarden session key." >&2; exit 1; \
 		fi; \
 	elif [ "$$status" = "unlocked" ]; then \
 		echo "[OK] Bitwarden vault is already unlocked."; \
 		if [ -z "$$BW_SESSION" ]; then \
 			echo "[WARN] BW_SESSION not set, obtaining session..."; \
-			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION (check master password)"; exit 1; }; \
+			BW_SESSION=$$(bw unlock --raw) || { echo "[ERROR] failed to obtain BW_SESSION"; exit 1; }; \
 		fi; \
-		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to update .bw_session" >&2; exit 1; }; \
-	else \
-		echo "[ERROR] Bitwarden status error: $$status" >&2; \
-		exit 1; \
+		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo "[ERROR] Failed to update session" >&2; exit 1; }; \
 	fi
 
 setup: init sync secrets
