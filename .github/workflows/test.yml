@@ -1,0 +1,26 @@
+name: Integration Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Run Integration Tests
+        run: |
+          # WITH_BW=0: Bitwardenなしでテストを実行
+          # SKIP_FONTS=1: 重いフォントダウンロードをスキップ
+          make test WITH_BW=0 SKIP_FONTS=1
