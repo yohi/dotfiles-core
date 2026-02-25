@@ -59,20 +59,22 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 init: $(REPOS_YAML_RESOLVED)
 	@echo "==> Initializing dependencies..."
 	@if command -v apt-get >/dev/null 2>&1; then \
-		sudo apt-get update && sudo apt-get install -y python3-pip jq curl python3-setuptools; \
+		SUDO=$$(command -v sudo || true); \
+		$$SUDO apt-get update && $$SUDO apt-get install -y python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
 	fi
 	@if ! command -v vcs >/dev/null 2>&1; then \
-		sudo apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool || { echo "ERROR: failed to install vcstool" >&2; exit 1; }; \
+		SUDO=$$(command -v sudo || true); \
+		$$SUDO apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool || { echo "ERROR: failed to install vcstool" >&2; exit 1; }; \
 	fi
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
 	# PATH inclusion for potential local installs
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import < $(REPOS_YAML_RESOLVED)
 
 sync: init $(REPOS_YAML_RESOLVED)
 	@echo "==> Syncing all components..."
 	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
+	PATH="$(HOME)/.local/bin:$$PATH" vcs import < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
 link:
