@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     curl \
     python3 \
+    rsync \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a test user with NOPASSWD sudo access

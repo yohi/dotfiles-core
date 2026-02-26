@@ -6,6 +6,9 @@ REPOS_YAML := repos.yaml
 REPOS_YAML_RESOLVED := .repos.resolved.yaml
 STOW_TARGET := $(HOME)
 
+# Path for storing Bitwarden session key (outside repository)
+BW_SESSION_FILE ?= $(shell echo $${XDG_RUNTIME_DIR:-$$HOME/.cache}/bw_session)
+
 # Colors
 RED    := \033[0;31m
 GREEN  := \033[0;32m
@@ -16,7 +19,7 @@ NC     := \033[0m # No Color
 # Reusable macro to dispatch a target to all components
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		if [ -f .bw_session ]; then export BW_SESSION=$$(cat .bw_session); fi; \
+		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
 		fail_count=0; \
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
@@ -137,8 +140,9 @@ _unlock_bw: _ensure_bw_auth
 		echo -e "$(BLUE)==> Unlocking Bitwarden vault...$(NC)" >&2; \
 		session=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] Bitwarden unlock failed or timed out.$(NC)" >&2; exit 1; }; \
 		if [ -n "$$session" ]; then \
-			echo "$$session" > .bw_session && chmod 600 .bw_session || { echo -e "$(RED)[ERROR] Failed to save session$(NC)" >&2; exit 1; }; \
-			echo -e "$(GREEN)[OK] Vault unlocked. Session saved to .bw_session$(NC)"; \
+			mkdir -p $$(dirname "$(BW_SESSION_FILE)"); \
+			echo "$$session" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to save session$(NC)" >&2; exit 1; }; \
+			echo -e "$(GREEN)[OK] Vault unlocked. Session saved to $(BW_SESSION_FILE)$(NC)"; \
 		else \
 			echo -e "$(RED)[ERROR] Failed to obtain Bitwarden session key.$(NC)" >&2; exit 1; \
 		fi; \
@@ -148,7 +152,8 @@ _unlock_bw: _ensure_bw_auth
 			echo -e "$(YELLOW)[WARN] BW_SESSION not set, obtaining session...$(NC)"; \
 			BW_SESSION=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] failed to obtain BW_SESSION$(NC)" >&2; exit 1; }; \
 		fi; \
-		echo "$$BW_SESSION" > .bw_session && chmod 600 .bw_session || { echo -e "$(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
+		mkdir -p $$(dirname "$(BW_SESSION_FILE)"); \
+		echo "$$BW_SESSION" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
 	else \
 		echo -e "$(RED)[ERROR] Unexpected Bitwarden status: $$status$(NC)" >&2; \
 		exit 1; \
@@ -164,12 +169,12 @@ test:
 	docker build -t dotfiles-core-test -f tests/Dockerfile.test .
 	@echo -e "$(BLUE)==> Running tests...$(NC)"
 	docker run --rm \
-		-v $$(pwd):/home/testuser/dotfiles-core \
+		-v "$$(pwd):/home/testuser/dotfiles-core" \
 		dotfiles-core-test ./tests/integration_test.sh
 
 clean:
 	@echo -e "$(YELLOW)==> Cleaning up session and components...$(NC)"
-	@rm -f .bw_session $(REPOS_YAML_RESOLVED)
+	@rm -f "$(BW_SESSION_FILE)" $(REPOS_YAML_RESOLVED)
 	@$(MAKE) .clean-safety
 
 .clean-safety:

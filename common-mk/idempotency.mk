@@ -4,14 +4,14 @@ MARKER_DIR := $(HOME)/.make_markers
 
 # マーカーの作成: $(call create_marker,name,version)
 define create_marker
-	@mkdir -p $(MARKER_DIR)
-	@echo "$(2)" > $(MARKER_DIR)/$(1).version
-	@touch $(MARKER_DIR)/$(1)
+	@mkdir -p "$(MARKER_DIR)"
+	@echo "$(2)" > "$(MARKER_DIR)/$(1).version"
+	@touch "$(MARKER_DIR)/$(1)"
 endef
 
 # マーカーの存在確認: $(call check_marker,name)
 define check_marker
-	test -f $(MARKER_DIR)/$(1)
+	test -f "$(MARKER_DIR)/$(1)"
 endef
 
 # コマンドの存在確認: $(call check_command,command)
