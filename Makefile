@@ -72,14 +72,20 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 	}
 	@if [ "$(USE_HTTPS)" = "1" ]; then \
 		echo -e "$(BLUE)==> Forcing HTTPS as requested...$(NC)"; \
-		sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
+		sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@ || { \
+			echo -e "$(RED)[ERROR] Failed to update URLs to HTTPS in $@$(NC)" >&2; \
+			exit 1; \
+		}; \
 	else \
 		echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"; \
 		ssh -o ConnectTimeout=$(SSH_CONNECT_TIMEOUT) -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 		ret=$$?; \
 		if [ $$ret -ne 0 ] && [ $$ret -ne 1 ]; then \
 			echo -e "$(YELLOW)    SSH connection failed (code $$ret), falling back to HTTPS...$(NC)"; \
-			sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
+			sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@ || { \
+				echo -e "$(RED)[ERROR] Failed to update URLs to HTTPS in $@$(NC)" >&2; \
+				exit 1; \
+			}; \
 		else \
 			echo -e "$(GREEN)    SSH connection successful (code $$ret).$(NC)"; \
 		fi; \
