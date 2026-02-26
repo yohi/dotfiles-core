@@ -4,7 +4,8 @@ set -euo pipefail
 echo "==> [Test] Starting integration tests inside container..."
 
 # Create a unique workspace in /tmp to avoid permission issues and residue
-export TEST_WORKSPACE=$(mktemp -d /tmp/dotfiles-test.XXXXXX)
+TMPDIR=$(mktemp -d /tmp/dotfiles-test.XXXXXX) || { echo "mktemp failed"; exit 1; }
+export TEST_WORKSPACE="$TMPDIR"
 trap 'rm -rf "$TEST_WORKSPACE"' EXIT
 echo "==> [Test] Created workspace: $TEST_WORKSPACE"
 

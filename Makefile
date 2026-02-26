@@ -73,7 +73,7 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 		echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"; \
 		ssh -o ConnectTimeout=$(SSH_CONNECT_TIMEOUT) -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 		ret=$$?; \
-		if [ $$ret -eq 255 ]; then \
+		if [ $$ret -ne 0 ]; then \
 			echo -e "$(YELLOW)    SSH connection failed (code $$ret), falling back to HTTPS...$(NC)"; \
 			sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
 		else \
@@ -140,7 +140,7 @@ _unlock_bw: _ensure_bw_auth
 		echo -e "$(BLUE)==> Unlocking Bitwarden vault...$(NC)" >&2; \
 		session=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] Bitwarden unlock failed or timed out.$(NC)" >&2; exit 1; }; \
 		if [ -n "$$session" ]; then \
-			mkdir -p $$(dirname "$(BW_SESSION_FILE)"); \
+			mkdir -p "$$(dirname "$(BW_SESSION_FILE)")"; \
 			echo "$$session" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to save session$(NC)" >&2; exit 1; }; \
 			echo -e "$(GREEN)[OK] Vault unlocked. Session saved to $(BW_SESSION_FILE)$(NC)"; \
 		else \
@@ -152,7 +152,7 @@ _unlock_bw: _ensure_bw_auth
 			echo -e "$(YELLOW)[WARN] BW_SESSION not set, obtaining session...$(NC)"; \
 			BW_SESSION=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] failed to obtain BW_SESSION$(NC)" >&2; exit 1; }; \
 		fi; \
-		mkdir -p $$(dirname "$(BW_SESSION_FILE)"); \
+		mkdir -p "$$(dirname "$(BW_SESSION_FILE)")"; \
 		echo "$$BW_SESSION" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
 	else \
 		echo -e "$(RED)[ERROR] Unexpected Bitwarden status: $$status$(NC)" >&2; \
