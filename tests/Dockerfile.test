@@ -3,6 +3,12 @@ FROM ubuntu:24.04
 # Avoid interactive prompts during apt-get
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Prevent services from starting during package installation
+RUN echo "#!/bin/sh\nexit 101" > /usr/sbin/policy-rc.d && chmod +x /usr/sbin/policy-rc.d
+
+# Mock systemctl to avoid "Failed to send reload request" errors
+RUN ln -s /usr/bin/true /usr/local/bin/systemctl
+
 # Install minimal bootstrap requirements
 RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
