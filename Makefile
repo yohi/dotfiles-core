@@ -73,7 +73,7 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 		echo -e "$(BLUE)==> Checking SSH connectivity to GitHub...$(NC)"; \
 		ssh -o ConnectTimeout=$(SSH_CONNECT_TIMEOUT) -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 		ret=$$?; \
-		if [ $$ret -ne 0 ]; then \
+		if [ $$ret -ne 0 ] && [ $$ret -ne 1 ]; then \
 			echo -e "$(YELLOW)    SSH connection failed (code $$ret), falling back to HTTPS...$(NC)"; \
 			sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
 		else \
