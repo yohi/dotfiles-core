@@ -190,6 +190,7 @@ test: _check_docker
 	docker build -t dotfiles-core-test -f tests/Dockerfile.test .
 	@echo -e "$(BLUE)==> Running tests...$(NC)"
 	docker run --rm \
+		--privileged \
 		-v "$$(pwd):/home/testuser/dotfiles-core" \
 		dotfiles-core-test ./tests/integration_test.sh
 
