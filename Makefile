@@ -9,6 +9,9 @@ STOW_TARGET := $(HOME)
 # Path for storing Bitwarden session key (outside repository)
 BW_SESSION_FILE ?= $(shell echo $${XDG_RUNTIME_DIR:-$$HOME/.cache}/bw_session)
 
+# Timezone for non-interactive setup
+TZ_OVERRIDE ?= Asia/Tokyo
+
 # Colors
 RED    := \033[0;31m
 GREEN  := \033[0;32m
@@ -95,7 +98,7 @@ init: $(REPOS_YAML_RESOLVED)
 	@echo -e "$(BLUE)==> Initializing dependencies...$(NC)"
 	@if command -v apt-get >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime; \
+		$$SUDO ln -fs /usr/share/zoneinfo/$(TZ_OVERRIDE) /etc/localtime; \
 		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
 	fi
 	@if ! command -v vcs >/dev/null 2>&1; then \
