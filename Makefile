@@ -89,11 +89,12 @@ init: $(REPOS_YAML_RESOLVED)
 	@echo -e "$(BLUE)==> Initializing dependencies...$(NC)"
 	@if command -v apt-get >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO apt-get update && $$SUDO apt-get install -y python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
+		$$SUDO ln -fs /usr/share/zoneinfo/Asia/Tokyo /etc/localtime; \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
 	fi
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
 	fi
 	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
 	mkdir -p $(COMPONENTS_DIR)
