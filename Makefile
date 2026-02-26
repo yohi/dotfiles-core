@@ -98,6 +98,7 @@ init: $(REPOS_YAML_RESOLVED)
 	@echo -e "$(BLUE)==> Initializing dependencies...$(NC)"
 	@if command -v apt-get >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
 		if [ ! -e "/usr/share/zoneinfo/$(TZ_OVERRIDE)" ]; then \
 			echo -e "$(RED)[ERROR] Timezone '$(TZ_OVERRIDE)' not found in /usr/share/zoneinfo/$(NC)" >&2; \
 			exit 1; \
@@ -106,7 +107,6 @@ init: $(REPOS_YAML_RESOLVED)
 			echo -e "$(RED)[ERROR] Failed to set /etc/localtime to $(TZ_OVERRIDE)$(NC)" >&2; \
 			exit 1; \
 		}; \
-		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
 	fi
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
