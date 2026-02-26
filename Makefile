@@ -49,7 +49,7 @@ define dispatch
 endef
 
 .PHONY: help init sync link secrets setup clean test \
-        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw .clean-safety
+        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw _inject_common_mk _check_docker .clean-safety
 
 help:
 	@echo -e "$(BLUE)Usage: make [target]$(NC)"
@@ -65,7 +65,11 @@ help:
 SSH_CONNECT_TIMEOUT ?= 3
 
 $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
-	@cp $(REPOS_YAML) $@
+	@cp $(REPOS_YAML) $@ || { \
+		ret=$$?; \
+		echo -e "$(RED)[ERROR] Failed to copy $(REPOS_YAML) to $@ (exit $$ret)$(NC)" >&2; \
+		exit $$ret; \
+	}
 	@if [ "$(USE_HTTPS)" = "1" ]; then \
 		echo -e "$(BLUE)==> Forcing HTTPS as requested...$(NC)"; \
 		sed -i -e 's|ssh://git@github.com/|https://github.com/|g' -e 's|git@github.com:|https://github.com/|g' -e 's|git@github.com/|https://github.com/|g' $@; \
@@ -102,7 +106,21 @@ sync: init $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
-link:
+_inject_common_mk:
+	@if [ -d "$(COMPONENTS_DIR)" ]; then \
+		echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
+		while IFS= read -r -d '' dir; do \
+			if [ -f "$$dir/Makefile" ]; then \
+				mkdir -p "$$dir/_mk"; \
+				cp common-mk/idempotency.mk "$$dir/_mk/" || { \
+					echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; \
+					exit 1; \
+				}; \
+			fi; \
+		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+	fi
+
+link: _inject_common_mk
 	@echo -e "$(BLUE)==> Delegating link to components...$(NC)"
 	$(call dispatch,link)
 
@@ -159,12 +177,15 @@ _unlock_bw: _ensure_bw_auth
 		exit 1; \
 	fi
 
-setup: sync secrets
+setup: sync secrets _inject_common_mk
 	@echo -e "$(BLUE)==> Delegating to component-specific setup...$(NC)"
 	$(call dispatch,setup)
 	@echo -e "$(GREEN)==> Setup Complete!$(NC)"
 
-test:
+_check_docker:
+	@command -v docker >/dev/null 2>&1 || { echo -e "$(RED)[ERROR] Docker is not available on PATH.$(NC)" >&2; exit 1; }
+
+test: _check_docker
 	@echo -e "$(BLUE)==> Building test container...$(NC)"
 	docker build -t dotfiles-core-test -f tests/Dockerfile.test .
 	@echo -e "$(BLUE)==> Running tests...$(NC)"
