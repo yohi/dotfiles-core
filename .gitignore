@@ -3,6 +3,7 @@ components/
 
 # Local secrets & temp files
 .bw_session
+.repos.resolved.yaml
 *.log
 .tmp/
 
