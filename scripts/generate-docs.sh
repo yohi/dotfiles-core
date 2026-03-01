@@ -111,21 +111,21 @@ generate_brewfile_packages() {
 EOF
 
     # Taps
-    grep '^tap ' "$brewfile" | sed 's/tap "/- /g' | sed 's/"//g' >> "$output_file"
+    grep '^tap ' "$brewfile" | sed 's/tap "/- /g' | sed 's/"//g' >> "$output_file" || true
 
     echo "" >> "$output_file"
     echo "## Brew パッケージ" >> "$output_file"
     echo "" >> "$output_file"
 
     # Brew packages
-    grep '^brew ' "$brewfile" | sed 's/brew "/- /g' | sed 's/".*//g' | sort >> "$output_file"
+    grep '^brew ' "$brewfile" | sed 's/brew "/- /g' | sed 's/".*//g' | sort >> "$output_file" || true
 
     echo "" >> "$output_file"
     echo "## Cask パッケージ" >> "$output_file"
     echo "" >> "$output_file"
 
     # Cask packages
-    grep '^cask ' "$brewfile" | sed 's/cask "/- /g' | sed 's/".*//g' | sort >> "$output_file"
+    grep '^cask ' "$brewfile" | sed 's/cask "/- /g' | sed 's/".*//g' | sort >> "$output_file" || true
 
     # 統計情報
     local tap_count=$(grep -c '^tap ' "$brewfile" || echo "0")
@@ -558,7 +558,13 @@ generate_index() {
 ## ドキュメント一覧
 
 - [Makefileターゲット一覧](makefile-targets.md) - 利用可能なMakeターゲット
-- [Brewfileパッケージ一覧](brewfile-packages.md) - Homebrewパッケージ詳細
+EOF
+
+    if [[ -f "$GENERATED_DIR/brewfile-packages.md" ]]; then
+        echo "- [Brewfileパッケージ一覧](brewfile-packages.md) - Homebrewパッケージ詳細" >> "$output_file"
+    fi
+
+    cat >> "$output_file" << EOF
 - [VS Code拡張機能一覧](vscode-extensions.md) - インストール対象の拡張機能
 - [ディレクトリ構造](directory-structure.md) - プロジェクトの構造
 - [システム要件](system-requirements.md) - 動作環境の要件

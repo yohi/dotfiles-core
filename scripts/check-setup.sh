@@ -133,7 +133,8 @@ check_fonts() {
     log_step "フォントを確認中..."
     
     # IBM Plex Sans フォント
-    local plex_count=$(fc-list : family | grep -i "IBM Plex Sans" | wc -l)
+    local plex_count
+    plex_count=$(fc-list : family | grep -i "IBM Plex Sans" | wc -l)
     if [[ $plex_count -gt 0 ]]; then
         record_result "PASS" "IBM Plex Sans フォントが検出されました ($plex_count 個)"
     else
@@ -141,7 +142,8 @@ check_fonts() {
     fi
     
     # Cica フォント
-    local cica_count=$(fc-list : family | grep -i "Cica" | wc -l)
+    local cica_count
+    cica_count=$(fc-list : family | grep -i "Cica" | wc -l)
     if [[ $cica_count -gt 0 ]]; then
         record_result "PASS" "Cica フォントが検出されました ($cica_count 個)"
     else
@@ -149,7 +151,8 @@ check_fonts() {
     fi
     
     # 日本語フォント
-    local jp_count=$(fc-list : family | grep -i "Noto.*CJK" | wc -l)
+    local jp_count
+    jp_count=$(fc-list : family | grep -i "Noto.*CJK" | wc -l)
     if [[ $jp_count -gt 0 ]]; then
         record_result "PASS" "日本語フォントが検出されました ($jp_count 個)"
     else
@@ -338,7 +341,8 @@ check_performance() {
     log_step "システムパフォーマンスを確認中..."
     
     # メモリ使用量（awkで浮動小数点比較を実行）
-    local mem_usage_info=$(free | grep Mem | awk '
+    local mem_usage_info
+    mem_usage_info=$(free | grep Mem | awk '
         {
             mem_used_percent = ($3/$2 * 100.0)
             if (mem_used_percent < 80) {
@@ -348,8 +352,10 @@ check_performance() {
             }
         }
     ')
-    local status=$(echo "$mem_usage_info" | cut -d' ' -f1)
-    local mem_used=$(echo "$mem_usage_info" | cut -d' ' -f2)
+    local status
+    status=$(echo "$mem_usage_info" | cut -d' ' -f1)
+    local mem_used
+    mem_used=$(echo "$mem_usage_info" | cut -d' ' -f2)
     
     if [[ "$status" == "PASS" ]]; then
         record_result "PASS" "メモリ使用量: ${mem_used}%"
@@ -358,7 +364,8 @@ check_performance() {
     fi
     
     # ディスク使用量
-    local disk_used=$(df -h / | awk 'NR==2{print $5}' | sed 's/%//')
+    local disk_used
+    disk_used=$(df -h / | awk 'NR==2{print $5}' | sed 's/%//')
     if [[ $disk_used -lt 80 ]]; then
         record_result "PASS" "ディスク使用量: ${disk_used}%"
     else
@@ -389,7 +396,7 @@ show_recommendations() {
     
     echo ""
     echo -e "${BLUE}💡 追加の推奨事項:${NC}"
-    echo "  1. 定期的な更新: cd ~/dotfiles && git pull && make setup"
+    echo "  1. 定期的な更新: cd \"\${DOTFILES_DIR:-\$HOME/dots}\" && git pull && make setup"
     echo "  2. 設定バックアップ: make setup"
     echo "  3. 詳細ヘルプ: make help"
 }
