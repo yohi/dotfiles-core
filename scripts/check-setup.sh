@@ -69,9 +69,10 @@ check_system_info() {
     log_step "システム情報を確認中..."
     
     # OS情報
-    local os_name=$(lsb_release -si 2>/dev/null || echo "Unknown")
-    local os_version=$(lsb_release -sr 2>/dev/null || echo "Unknown")
-    local arch=$(uname -m)
+    local os_name os_version arch
+    os_name=$(lsb_release -si 2>/dev/null || echo "Unknown")
+    os_version=$(lsb_release -sr 2>/dev/null || echo "Unknown")
+    arch=$(uname -m)
     
     log_info "OS: $os_name $os_version ($arch)"
     
@@ -172,10 +173,10 @@ check_neovim() {
         elif [[ -d "$config_dir" ]]; then
             record_result "WARN" "Neovim設定ディレクトリが存在しますが、dotfilesにリンクされていません"
         else
-            record_result "FAIL" "Neovim設定が見つかりません - make setup-vim"
+            record_result "FAIL" "Neovim設定が見つかりません - make setup"
         fi
     else
-        record_result "FAIL" "Neovimがインストールされていません - make install-apps"
+        record_result "FAIL" "Neovimがインストールされていません - make setup"
     fi
 }
 
@@ -191,7 +192,7 @@ check_editors() {
         if [[ -f "$vscode_settings" ]]; then
             record_result "PASS" "VS Code設定ファイルが存在します"
         else
-            record_result "WARN" "VS Code設定ファイルが見つかりません - make setup-vscode"
+            record_result "WARN" "VS Code設定ファイルが見つかりません - make setup"
         fi
     else
         record_result "WARN" "VS Codeがインストールされていません"
@@ -224,10 +225,10 @@ check_shell() {
         if [[ -f "$HOME/.p10k.zsh" ]]; then
             record_result "PASS" "Powerlevel10k設定が存在します"
         else
-            record_result "WARN" "Powerlevel10k設定が見つかりません - make setup-zsh"
+            record_result "WARN" "Powerlevel10k設定が見つかりません - make setup"
         fi
     else
-        record_result "FAIL" "Zshがインストールされていません - make install-apps"
+        record_result "FAIL" "Zshがインストールされていません - make setup"
     fi
 }
 

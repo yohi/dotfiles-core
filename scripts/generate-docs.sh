@@ -352,7 +352,7 @@ sudo apt update
 sudo apt --fix-broken install
 
 # リポジトリをクリーンアップ
-make clean-repos
+make clean
 ```
 
 ### 2. Homebrewインストールエラー
@@ -365,7 +365,7 @@ make clean-repos
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
 
 # 再インストール
-make install-homebrew
+make init
 
 # PATH設定を確認
 echo $PATH | grep -o homebrew
@@ -385,7 +385,7 @@ fc-list | grep -i "IBM Plex Sans"
 fc-list | grep -i "Cica"
 
 # フォントを再インストール
-make install-cica-fonts
+make setup
 ```
 
 ### 4. Neovim設定エラー
@@ -399,7 +399,7 @@ rm -rf ~/.local/share/nvim
 rm -rf ~/.cache/nvim
 
 # 設定を再適用
-make setup-vim
+make setup
 
 # Neovim内でプラグインを再インストール
 nvim +Lazy +qall
@@ -516,7 +516,7 @@ rm -rf ~/.vscode
 
 # 再セットアップ
 cd ~/dots
-make setup-all
+make setup
 ```
 
 ### システム設定の復旧
@@ -525,7 +525,7 @@ make setup-all
 dconf reset -f /org/gnome/
 
 # デフォルト設定を復元
-make setup-gnome-tweaks
+make setup
 ```
 
 ## サポート情報
