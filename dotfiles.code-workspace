@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "components/dotfiles-git"
+		},
+		{
+			"path": "components/dotfiles-ai"
+		},
+		{
+			"path": "components/dotfiles-vim"
+		},
+		{
+			"path": "components/dotfiles-gnome"
+		}
+	],
+	"settings": {}
+}

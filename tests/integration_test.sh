@@ -39,6 +39,7 @@ echo "==> [Test] Running 'make setup'..."
 # Some dependencies might install to ~/.local/bin
 export WITH_BW=0
 export SKIP_FONTS=1
+export SKIP_GUI=1
 make setup
 
 # 2. Verify dependencies installation

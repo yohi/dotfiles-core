@@ -57,6 +57,8 @@ make setup
 | :--- | :--- |
 | `make init` | 依存関係 (`vcstool`, `jq`, `curl` 等) を導入し、リポジトリを初期クローンします。 |
 | `make sync` | `vcstool` を使用して、全コンポーネントを最新の状態に更新します。 |
+| `make status` | `vcstool` を使用して、全コンポーネントの Git ステータスを一括確認します。 |
+| `make diff` | `vcstool` を使用して、全コンポーネントの Git 差分を一括確認します。 |
 | `make link` | `components/` 以下の各ディレクトリに対してリンク処理 (`ln -sfn`) を委譲し、`~` へ設定を展開します。 |
 | `make secrets` | Bitwarden CLI を呼び出し、クレデンシャルを解決します。 |
 | `make setup` | 上記を順に実行し、各コンポーネント固有の `make setup` があれば呼び出して処理を委譲します。実行時に `common-mk/` のマクロが自動注入されます。 |
