@@ -59,16 +59,25 @@ echo "✅ システムメモリ設定ファイルを作成しました: /etc/sys
 # 2. ブラウザメモリ最適化設定
 echo "🌐 ブラウザメモリ最適化設定..."
 
-# Chrome用メモリ最適化フラグの設定
-mkdir -p ~/.config/chrome-flags.conf.d
-cat > ~/.config/chrome-flags.conf.d/memory-optimization.conf << 'EOF'
+# Chrome/Chromium 用メモリ最適化フラグの設定
+# 注: これらのフラグは .conf ファイルをサポートする一部のラッパー経由でのみ有効です
+#     Snap 版や特定のディストリビューション（Fedora 等）の構成では無視される可能性があります
+mkdir -p ~/.config
+cat > ~/.config/chrome-flags.conf << 'EOF'
 # Chrome メモリ最適化フラグ（最小・安全）
 --js-flags="--max-old-space-size=4096"
 --enable-low-end-device-mode
 --enable-tab-audio-muting
 EOF
 
-echo "✅ Chromeメモリ最適化設定を作成しました"
+cat > ~/.config/chromium-flags.conf << 'EOF'
+# Chromium メモリ最適化フラグ（最小・安全）
+--js-flags="--max-old-space-size=4096"
+--enable-low-end-device-mode
+--enable-tab-audio-muting
+EOF
+
+echo "✅ Chrome/Chromium メモリ最適化設定を作成しました (~/.config/*-flags.conf)"
 
 # 3. システムサービス最適化
 echo "⚙️  システムサービス最適化..."

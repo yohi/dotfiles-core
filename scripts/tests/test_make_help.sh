@@ -36,21 +36,22 @@ if grep -Eq '\bmake[[:space:]]+_' "$help_out"; then
   exit 1
 fi
 
-required_sections=(
-  "システム設定"
-  "パッケージ"
-  "設定"
-  "管理"
-  "プリセット"
-  "段階的セットアップ"
-  "フォント"
-  "メモリ"
-  "AI"
+required_targets=(
+  "init"
+  "sync"
+  "status"
+  "diff"
+  "link"
+  "secrets"
+  "setup"
+  "test"
+  "clean"
 )
 
-for section in "${required_sections[@]}"; do
-  if ! grep -q "$section" "$help_out"; then
-    echo "missing help section: $section" >&2
+for target in "${required_targets[@]}"; do
+  # ターゲット名がヘルプ出力に含まれているか確認
+  if ! grep -q "\b$target\b" "$help_out"; then
+    echo "missing required target in help output: $target" >&2
     exit 1
   fi
 done

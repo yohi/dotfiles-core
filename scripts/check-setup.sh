@@ -123,7 +123,7 @@ check_homebrew() {
             fi
         done
     else
-        record_result "FAIL" "Homebrewがインストールされていません - make install-homebrew"
+        record_result "FAIL" "Homebrewがインストールされていません - make init"
     fi
 }
 
@@ -144,7 +144,7 @@ check_fonts() {
     if [[ $cica_count -gt 0 ]]; then
         record_result "PASS" "Cica フォントが検出されました ($cica_count 個)"
     else
-        record_result "WARN" "Cica フォントが見つかりません - make install-cica-fonts"
+        record_result "WARN" "Cica フォントが見つかりません - make setup"
     fi
     
     # 日本語フォント
@@ -264,7 +264,7 @@ check_japanese() {
     if locale | grep -q "ja_JP.UTF-8"; then
         record_result "PASS" "日本語ロケールが設定されています"
     else
-        record_result "WARN" "日本語ロケールが設定されていません - make system-setup"
+        record_result "WARN" "日本語ロケールが設定されていません - make init"
     fi
     
     # 入力メソッド確認
@@ -275,7 +275,7 @@ check_japanese() {
         if ibus list-engines | grep -q mozc; then
             record_result "PASS" "Mozc(日本語入力)が利用可能です"
         else
-            record_result "WARN" "Mozcが見つかりません - make system-setup"
+            record_result "WARN" "Mozcが見つかりません - make init"
         fi
     else
         record_result "WARN" "IBus入力メソッドがインストールされていません"
@@ -287,7 +287,7 @@ check_gnome() {
     log_step "GNOME環境を確認中..."
     
     # GNOME確認
-    if [[ "$XDG_CURRENT_DESKTOP" == *"GNOME"* ]]; then
+    if [[ "${XDG_CURRENT_DESKTOP:-}" == *"GNOME"* ]]; then
         record_result "PASS" "GNOME環境が検出されました"
         
         # GNOME Tweaks
@@ -373,23 +373,23 @@ show_recommendations() {
     if [[ $failed_checks -gt 0 ]]; then
         echo ""
         echo -e "${RED}❌ 失敗したチェックの修正方法:${NC}"
-        echo "  1. 基本セットアップ: make system-setup"
-        echo "  2. Homebrewインストール: make install-homebrew"
-        echo "  3. 全体セットアップ: make setup-all"
+        echo "  1. 基本セットアップ: make init"
+        echo "  2. Homebrewインストール: make init"
+        echo "  3. 全体セットアップ: make setup"
     fi
     
     if [[ $warning_checks -gt 0 ]]; then
         echo ""
         echo -e "${YELLOW}⚠️  警告項目の改善方法:${NC}"
-        echo "  1. フォントインストール: make install-cica-fonts"
-        echo "  2. 個別設定適用: make setup-vim, make setup-zsh"
-        echo "  3. GNOME設定適用: make setup-gnome-extensions"
+        echo "  1. フォントインストール: make setup"
+        echo "  2. 個別設定適用: make setup"
+        echo "  3. GNOME設定適用: make setup"
     fi
     
     echo ""
     echo -e "${BLUE}💡 追加の推奨事項:${NC}"
-    echo "  1. 定期的な更新: cd ~/dots && git pull && make setup-all"
-    echo "  2. 設定バックアップ: make backup-gnome-tweaks"
+    echo "  1. 定期的な更新: cd ~/dotfiles && git pull && make setup"
+    echo "  2. 設定バックアップ: make setup"
     echo "  3. 詳細ヘルプ: make help"
 }
 

@@ -1,9 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ドキュメント自動生成スクリプト
 # 環境構築スクリプト群の各種情報を収集してドキュメントを生成
 
 set -euo pipefail
+
+# Bash 4.0以上が必要（連想配列を使用するため）
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "Error: Bash 4.0 or higher is required for this script." >&2
+    exit 1
+fi
 
 # 色付きメッセージの定義
 readonly RED='\033[0;31m'
@@ -23,8 +29,14 @@ log_step() {
 }
 
 # 変数定義
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# cd失敗を確実に検知
+RAW_SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$RAW_SCRIPT_DIR" && pwd)" || { echo "Error: Cannot resolve script directory." >&2; exit 1; }
+readonly SCRIPT_DIR
+
+DOTFILES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)" || { echo "Error: Cannot resolve dotfiles root directory." >&2; exit 1; }
+readonly DOTFILES_DIR
+
 readonly DOCS_DIR="$DOTFILES_DIR/docs"
 readonly GENERATED_DIR="$DOCS_DIR/generated"
 
@@ -42,6 +54,7 @@ generate_makefile_targets() {
     log_step "Makefileターゲット一覧を生成中..."
 
     local output_file="$GENERATED_DIR/makefile-targets.md"
+    local makefile="$DOTFILES_DIR/Makefile"
 
     cat > "$output_file" << 'EOF'
 # Makefileターゲット一覧
@@ -54,13 +67,10 @@ EOF
 
     cd "$DOTFILES_DIR"
 
-    # Makefileからターゲットを抽出
-    grep -E "^[a-zA-Z0-9_-]+:" Makefile | sed 's/:.*//g' | sort | while read -r target; do
-        # ターゲットの説明を取得（可能な場合）
-        local description=""
-        if grep -q "## $target" Makefile; then
-            description=$(grep "## $target" Makefile | sed "s/.*## $target - //g")
-        fi
+    # Makefileからターゲットを抽出 (target: ## description 形式に対応)
+    grep -E "^[a-zA-Z0-9_-]+:.*?##" "$makefile" | sort | while read -r line; do
+        local target=$(echo "$line" | cut -d':' -f1)
+        local description=$(echo "$line" | sed 's/.*## //')
 
         echo "- \`make $target\`" >> "$output_file"
         if [[ -n "$description" ]]; then
@@ -77,6 +87,19 @@ generate_brewfile_packages() {
     log_step "Brewfileパッケージ一覧を生成中..."
 
     local output_file="$GENERATED_DIR/brewfile-packages.md"
+    local brewfile="$DOTFILES_DIR/Brewfile"
+
+    # Brewfileが存在しない場合はスキップ（dotfiles-systemにある場合を考慮）
+    if [[ ! -f "$brewfile" ]]; then
+        # components配下も探す
+        local components_brewfile="$DOTFILES_DIR/components/dotfiles-system/Brewfile"
+        if [[ -f "$components_brewfile" ]]; then
+            brewfile="$components_brewfile"
+        else
+            log_info "Brewfile が見つからないため、パッケージ一覧の生成をスキップします。"
+            return
+        fi
+    fi
 
     cat > "$output_file" << 'EOF'
 # Brewfile パッケージ一覧
@@ -87,29 +110,27 @@ generate_brewfile_packages() {
 
 EOF
 
-    cd "$DOTFILES_DIR"
-
     # Taps
-    grep '^tap ' Brewfile | sed 's/tap "/- /g' | sed 's/"//g' >> "$output_file"
+    grep '^tap ' "$brewfile" | sed 's/tap "/- /g' | sed 's/"//g' >> "$output_file"
 
     echo "" >> "$output_file"
     echo "## Brew パッケージ" >> "$output_file"
     echo "" >> "$output_file"
 
     # Brew packages
-    grep '^brew ' Brewfile | sed 's/brew "/- /g' | sed 's/".*//g' | sort >> "$output_file"
+    grep '^brew ' "$brewfile" | sed 's/brew "/- /g' | sed 's/".*//g' | sort >> "$output_file"
 
     echo "" >> "$output_file"
     echo "## Cask パッケージ" >> "$output_file"
     echo "" >> "$output_file"
 
     # Cask packages
-    grep '^cask ' Brewfile | sed 's/cask "/- /g' | sed 's/".*//g' | sort >> "$output_file"
+    grep '^cask ' "$brewfile" | sed 's/cask "/- /g' | sed 's/".*//g' | sort >> "$output_file"
 
     # 統計情報
-    local tap_count=$(grep -c '^tap ' Brewfile || echo "0")
-    local brew_count=$(grep -c '^brew ' Brewfile || echo "0")
-    local cask_count=$(grep -c '^cask ' Brewfile || echo "0")
+    local tap_count=$(grep -c '^tap ' "$brewfile" || echo "0")
+    local brew_count=$(grep -c '^brew ' "$brewfile" || echo "0")
+    local cask_count=$(grep -c '^cask ' "$brewfile" || echo "0")
 
     cat >> "$output_file" << EOF
 
@@ -122,7 +143,7 @@ EOF
 
 EOF
 
-    log_info "Brewfileパッケージ一覧を生成しました: $output_file"
+    log_info "Brewfileパッケージ一覧を生成しました: $output_file ($brewfile を使用)"
 }
 
 # VS Code拡張機能一覧を生成
