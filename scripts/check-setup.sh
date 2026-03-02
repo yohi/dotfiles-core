@@ -134,7 +134,7 @@ check_fonts() {
     
     # IBM Plex Sans フォント
     local plex_count
-    plex_count=$(fc-list : family | grep -i "IBM Plex Sans" | wc -l)
+    plex_count=$(fc-list : family | (grep -i "IBM Plex Sans" || true) | wc -l)
     if [[ $plex_count -gt 0 ]]; then
         record_result "PASS" "IBM Plex Sans フォントが検出されました ($plex_count 個)"
     else
@@ -143,7 +143,7 @@ check_fonts() {
     
     # Cica フォント
     local cica_count
-    cica_count=$(fc-list : family | grep -i "Cica" | wc -l)
+    cica_count=$(fc-list : family | (grep -i "Cica" || true) | wc -l)
     if [[ $cica_count -gt 0 ]]; then
         record_result "PASS" "Cica フォントが検出されました ($cica_count 個)"
     else
@@ -152,7 +152,7 @@ check_fonts() {
     
     # 日本語フォント
     local jp_count
-    jp_count=$(fc-list : family | grep -i "Noto.*CJK" | wc -l)
+    jp_count=$(fc-list : family | (grep -i "Noto.*CJK" || true) | wc -l)
     if [[ $jp_count -gt 0 ]]; then
         record_result "PASS" "日本語フォントが検出されました ($jp_count 個)"
     else
