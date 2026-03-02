@@ -1,0 +1,3 @@
+active_on_launch: True
+keymap_style: "default"
+notification_on_mode_change: True

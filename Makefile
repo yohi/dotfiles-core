@@ -51,7 +51,7 @@ define dispatch
 	fi
 endef
 
-.PHONY: help init sync link secrets setup clean test \
+.PHONY: help init sync link secrets setup clean test status diff \
         _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw _inject_common_mk _check_docker .clean-safety
 
 help:
@@ -59,6 +59,8 @@ help:
 	@echo "Targets:"
 	@echo "  init     Install dependencies (vcstool, jq, curl) and clone repos"
 	@echo "  sync     Update all components using vcstool"
+	@echo "  status   Check git status of all components"
+	@echo "  diff     Check git diff of all components"
 	@echo "  link     Apply symbolic links (delegated to components)"
 	@echo "  secrets  Fetch credentials from Bitwarden"
 	@echo "  setup    Run full setup sequence including component delegation"
@@ -122,6 +124,14 @@ sync: init $(REPOS_YAML_RESOLVED)
 	mkdir -p $(COMPONENTS_DIR)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
+
+status: ## Check git status of all components
+	@echo -e "$(BLUE)==> Checking status of all components...$(NC)"
+	@PATH="$(HOME)/.local/bin:$$PATH" vcs status $(COMPONENTS_DIR)
+
+diff: ## Check git diff of all components
+	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
+	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
