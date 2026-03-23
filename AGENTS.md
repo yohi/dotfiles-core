@@ -149,6 +149,15 @@ When `make setup` runs:
 - Use Bitwarden CLI (`bw`) for credential resolution
 - `.gitignore` must exclude `.bw_session`, `*.log`, `.tmp/`
 
+### 6. Component .env Convention
+
+Components may include a `.env` file in their root directory.
+
+- **Purpose**: Local environment-specific configuration
+- **Format**: Simple shell variable assignments (e.g., `FOO=bar`)
+- **Restriction**: Should **ONLY** contain variable assignments. Avoid executing complex shell logic or commands with side effects, as these files are sourced by the orchestrator and shell initialization.
+- **Precedence**: Loaded automatically by the orchestrator `Makefile` (via `dispatch` macro) and `dotfiles-zsh` initialization.
+
 ## PATH RESOLUTION PATTERN
 
 Each component's scripts must resolve paths dynamically:
