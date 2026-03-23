@@ -30,7 +30,7 @@ define dispatch
 				if $(MAKE) -C "$$dir" -n $(1) >/dev/null 2>&1; then \
 					total_count=$$((total_count+1)); \
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
-					if ! $(MAKE) -C "$$dir" $(1); then \
+					if ! ( if [ -f "$$dir/.env" ]; then set -a; . "$$dir/.env"; set +a; fi; $(MAKE) -C "$$dir" $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
 						fail_count=$$((fail_count+1)); \
 					else \
@@ -234,3 +234,5 @@ clean:
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
+
+
