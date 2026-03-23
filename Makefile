@@ -27,22 +27,41 @@ define dispatch
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
 			if [ -f "$$dir/Makefile" ]; then \
-				if ( cd "$$dir" && { [ ! -f .env ] || { export $$(grep -v '^\s*#' .env | xargs) || exit 1; }; } && $(MAKE) -n $(1) >/dev/null 2>&1 ); then \
+				err_out=$$( ( cd "$$dir" && \
+					if [ -f .env ]; then \
+						while IFS= read -r line || [ -n "$$line" ]; do \
+							case "$$line" in \
+								"#"* | "") ;; \
+								*) export "$$line" || exit 1 ;; \
+							esac; \
+						done < .env || exit 1; \
+					fi && \
+					$(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
+				ret=$$?; \
+				if [ $$ret -eq 0 ]; then \
 					total_count=$$((total_count+1)); \
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
-					if ! ( cd "$$dir" && { [ ! -f .env ] || { export $$(grep -v '^\s*#' .env | xargs) || { echo -e "$(RED)[ERROR] Failed to load .env$(NC)" >&2; exit 1; }; }; } && $(MAKE) $(1) ); then \
+					if ! ( cd "$$dir" && \
+						if [ -f .env ]; then \
+							while IFS= read -r line || [ -n "$$line" ]; do \
+								case "$$line" in \
+									"#"* | "") ;; \
+									*) export "$$line" || { echo -e "$(RED)[ERROR] Failed to load .env line: $$line$(NC)" >&2; exit 1; } ;; \
+								esac; \
+							done < .env || { echo -e "$(RED)[ERROR] Failed to read .env$(NC)" >&2; exit 1; }; \
+						fi && \
+						$(MAKE) $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
 						fail_count=$$((fail_count+1)); \
 					else \
 						echo -e "$(GREEN)[SUCCESS] make $(1) completed in $$dir$(NC)"; \
 					fi; \
+				elif echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
+					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
 				else \
-					if ( cd "$$dir" && [ -f .env ] && ! (export $$(grep -v '^\s*#' .env | xargs)) >/dev/null 2>&1 ); then \
-						echo -e "$(RED)[ERROR] Failed to load $$dir/.env during detection$(NC)" >&2; \
-						fail_count=$$((fail_count+1)); \
-					else \
-						echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
-					fi; \
+					echo -e "$(RED)[ERROR] Target detection failed in $$dir:$(NC)" >&2; \
+					echo "$$err_out" | sed 's/^/  /' >&2; \
+					fail_count=$$((fail_count+1)); \
 				fi; \
 			fi; \
 		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
@@ -239,6 +258,8 @@ clean:
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
+
+
 
 
 
