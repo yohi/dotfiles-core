@@ -27,17 +27,22 @@ define dispatch
 		total_count=0; \
 		while IFS= read -r -d '' dir; do \
 			if [ -f "$$dir/Makefile" ]; then \
-				if $(MAKE) -C "$$dir" -n $(1) >/dev/null 2>&1; then \
+				if ( cd "$$dir" && { [ ! -f .env ] || { set -a; . .env || exit 1; set +a; }; } && $(MAKE) -n $(1) >/dev/null 2>&1 ); then \
 					total_count=$$((total_count+1)); \
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
-					if ! ( if [ -f "$$dir/.env" ]; then set -a; . "$$dir/.env" || { echo -e "$(RED)[ERROR] Failed to source $$dir/.env$(NC)" >&2; exit 1; }; set +a; fi; $(MAKE) -C "$$dir" $(1) ); then \
+					if ! ( cd "$$dir" && { [ ! -f .env ] || { set -a; . .env || { echo -e "$(RED)[ERROR] Failed to source .env$(NC)" >&2; exit 1; }; set +a; }; } && $(MAKE) $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
 						fail_count=$$((fail_count+1)); \
 					else \
 						echo -e "$(GREEN)[SUCCESS] make $(1) completed in $$dir$(NC)"; \
 					fi; \
 				else \
-					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
+					if ( cd "$$dir" && [ -f .env ] && ! (set -a; . .env) >/dev/null 2>&1 ); then \
+						echo -e "$(RED)[ERROR] Failed to source $$dir/.env during detection$(NC)" >&2; \
+						fail_count=$$((fail_count+1)); \
+					else \
+						echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
+					fi; \
 				fi; \
 			fi; \
 		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
@@ -234,5 +239,6 @@ clean:
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
+
 
 
