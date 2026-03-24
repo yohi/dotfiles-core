@@ -30,11 +30,8 @@ define dispatch
 				err_out=$$( ( cd "$$dir" && \
 					if [ -f .env ]; then \
 						while IFS= read -r line || [ -n "$$line" ]; do \
-							case "$$line" in \
-								"#"* | "") ;; \
-								*) export "$$line" || exit 1 ;; \
-							esac; \
-						done < .env || exit 1; \
+							export "$$line" || exit 1; \
+						done < <(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$') || exit 1; \
 					fi && \
 					$(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
@@ -44,11 +41,8 @@ define dispatch
 					if ! ( cd "$$dir" && \
 						if [ -f .env ]; then \
 							while IFS= read -r line || [ -n "$$line" ]; do \
-								case "$$line" in \
-									"#"* | "") ;; \
-									*) export "$$line" || { echo -e "$(RED)[ERROR] Failed to load .env line: $$line$(NC)" >&2; exit 1; } ;; \
-								esac; \
-							done < .env || { echo -e "$(RED)[ERROR] Failed to read .env$(NC)" >&2; exit 1; }; \
+								export "$$line" || { echo -e "$(RED)[ERROR] Failed to load .env line: $$line$(NC)" >&2; exit 1; }; \
+							done < <(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$') || { echo -e "$(RED)[ERROR] Failed to read .env$(NC)" >&2; exit 1; }; \
 						fi && \
 						$(MAKE) $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
