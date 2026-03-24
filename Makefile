@@ -29,9 +29,8 @@ define dispatch
 			if [ -f "$$dir/Makefile" ]; then \
 				err_out=$$( ( cd "$$dir" && \
 					if [ -f .env ]; then \
-						while IFS= read -r line || [ -n "$$line" ]; do \
-							export "$$line" || exit 1; \
-						done < <(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$') || exit 1; \
+						lines=$$(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$' | xargs); \
+						if [ -n "$$lines" ]; then export $$lines || exit 1; fi; \
 					fi && \
 					$(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
@@ -40,9 +39,8 @@ define dispatch
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
 					if ! ( cd "$$dir" && \
 						if [ -f .env ]; then \
-							while IFS= read -r line || [ -n "$$line" ]; do \
-								export "$$line" || { echo -e "$(RED)[ERROR] Failed to load .env line: $$line$(NC)" >&2; exit 1; }; \
-							done < <(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$') || { echo -e "$(RED)[ERROR] Failed to read .env$(NC)" >&2; exit 1; }; \
+							lines=$$(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$' | xargs); \
+							if [ -n "$$lines" ]; then export $$lines || { echo -e "$(RED)[ERROR] Failed to load .env in $$dir$(NC)" >&2; exit 1; }; fi; \
 						fi && \
 						$(MAKE) $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
