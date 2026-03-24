@@ -10,7 +10,8 @@ trap 'rm -rf "$TEST_WORKSPACE"' EXIT
 echo "==> [Test] Created workspace: $TEST_WORKSPACE"
 
 # Sync current directory to workspace, excluding unnecessary files
-rsync -a --exclude=".git" . "$TEST_WORKSPACE/"
+# Exclude components to avoid permission issues with mounted volumes in local tests
+rsync -a --exclude=".git" --exclude="components" . "$TEST_WORKSPACE/"
 cd "$TEST_WORKSPACE"
 
 # Fix remotes of existing components to HTTPS to avoid vcstool conflict
