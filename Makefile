@@ -25,11 +25,11 @@ define dispatch
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
 		fail_count=0; \
 		total_count=0; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
+		for dir in "$(COMPONENTS_DIR)"/*; do \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				err_out=$$( ( cd "$$dir" && \
 					if [ -f .env ]; then \
-						lines=$$(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$' | xargs); \
+						lines=$$(grep -v '^[[:space:]]*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^[[:space:]]*$$' | xargs); \
 						if [ -n "$$lines" ]; then export $$lines || exit 1; fi; \
 					fi && \
 					$(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
@@ -39,7 +39,7 @@ define dispatch
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
 					if ! ( cd "$$dir" && \
 						if [ -f .env ]; then \
-							lines=$$(grep -v '^\s*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^\s*$$' | xargs); \
+							lines=$$(grep -v '^[[:space:]]*#' .env | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' | grep -v '^[[:space:]]*$$' | xargs); \
 							if [ -n "$$lines" ]; then export $$lines || { echo -e "$(RED)[ERROR] Failed to load .env in $$dir$(NC)" >&2; exit 1; }; fi; \
 						fi && \
 						$(MAKE) $(1) ); then \
@@ -56,7 +56,7 @@ define dispatch
 					fail_count=$$((fail_count+1)); \
 				fi; \
 			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		done; \
 		echo "---"; \
 		if [ $$fail_count -gt 0 ]; then \
 			echo -e "$(RED)Summary for $(1): $$total_count attempted, $$fail_count failures.$(NC)"; \
@@ -152,15 +152,15 @@ diff: ## Check git diff of all components
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
+		for dir in "$(COMPONENTS_DIR)"/*; do \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				mkdir -p "$$dir/_mk"; \
 				cp common-mk/idempotency.mk "$$dir/_mk/" || { \
 					echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; \
 					exit 1; \
 				}; \
 			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		done; \
 	fi
 
 link: _inject_common_mk
