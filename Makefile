@@ -223,7 +223,12 @@ setup: sync secrets _inject_common_mk
 	$(call dispatch,setup)
 	@echo -e "$(GREEN)==> Setup Complete!$(NC)"
 
+# Internal target for testing the dispatch macro
+test-dispatch:
+	$(call dispatch,$(TARGET))
+
 _check_docker:
+
 	@command -v docker >/dev/null 2>&1 || { echo -e "$(RED)[ERROR] Docker is not available on PATH.$(NC)" >&2; exit 1; }
 
 test: _check_docker
