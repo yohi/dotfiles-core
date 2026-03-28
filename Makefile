@@ -146,18 +146,17 @@ diff: ## Check git diff of all components
 
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-		echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
-		for dir in "$(COMPONENTS_DIR)"/*; do \
-			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
-				mkdir -p "$$dir/_mk"; \
-				cp common-mk/idempotency.mk "$$dir/_mk/" || { \
-					echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; \
-					exit 1; \
-				}; \
-			fi; \
-		done; \
-	fi
-
+	        echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
+	        for dir in "$(COMPONENTS_DIR)"/*; do \
+	                if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+	                        mkdir -p "$$dir/_mk"; \
+	                        ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
+	                        ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
+	                        ln -sf ../../../common-mk/core.mk "$$dir/_mk/core.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
+	                        ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
+	                fi; \
+	        done; \
+        fi
 link: _inject_common_mk
 	@echo -e "$(BLUE)==> Delegating link to components...$(NC)"
 	$(call dispatch,link)
