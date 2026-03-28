@@ -146,8 +146,8 @@ diff: ## Check git diff of all components
 	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
+# Note: Symlink depth depends on whether file is in root (2 levels) or _mk/ (3 levels)
 _inject_common_mk:
-	# Note: Symlink depth depends on whether file is in root (2 levels) or _mk/ (3 levels)
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 	        echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
 	        for dir in "$(COMPONENTS_DIR)"/*; do \

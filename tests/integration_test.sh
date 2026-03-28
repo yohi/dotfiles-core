@@ -77,8 +77,14 @@ mkdir -p "$SCENARIO_4"
 cp -r "$FIXTURES_DIR/mock-broken-env" "$SCENARIO_4/"
 
 echo "==> [Test Scenario] Broken .env detection"
-run_test_make "setup" "$SCENARIO_4" "false"
-echo "[OK] Broken .env detection PASSED."
+output=$(run_test_make "setup" "$SCENARIO_4" "false" 2>&1)
+echo "$output"
+if echo "$output" | grep -q "\[ERROR\] Failed to parse \.env"; then
+    echo "[OK] Broken .env detection PASSED."
+else
+    echo "ERROR: Expected parse error not found in output"
+    exit 1
+fi
 
 # 5. Verify _inject_common_mk and symlinks
 SCENARIO_5="$WORK_DIR/scenario5"
@@ -100,10 +106,6 @@ for f in _mk/help.mk _mk/idempotency.mk _mk/core.mk DOTFILES_COMMON_RULES.md; do
         exit 1
     fi
 done
-if [ ! -L "$SCENARIO_5/components/mock-ok/DOTFILES_COMMON_RULES.md" ]; then
-    echo "ERROR: DOTFILES_COMMON_RULES.md is not a symlink"
-    exit 1
-fi
 
 echo "[OK] _inject_common_mk and symlinks PASSED."
 
