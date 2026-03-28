@@ -1,1 +1,1 @@
-.DEFAULT_GOAL := setup
+.DEFAULT_GOAL := help
