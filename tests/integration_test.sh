@@ -71,4 +71,28 @@ echo "==> [Test Scenario] Skipping non-existent target"
 run_test_make "non-existent-target" "$SCENARIO_3" "true"
 echo "[OK] Skipping non-existent target PASSED."
 
+# 4. Verify _inject_common_mk and symlinks
+SCENARIO_4="$WORK_DIR/scenario4"
+# Prepare temporary structure inside SCENARIO_4 to simulate root
+mkdir -p "$SCENARIO_4/common-mk"
+mkdir -p "$SCENARIO_4/components/mock-ok"
+cp common-mk/* "$SCENARIO_4/common-mk/"
+cp tests/fixtures/components/mock-ok/Makefile "$SCENARIO_4/components/mock-ok/"
+
+echo "==> [Test Scenario] _inject_common_mk and symlinks"
+# Run _inject_common_mk in the scenario 4 context
+(cd "$SCENARIO_4" && COMPONENTS_DIR="components" make -f "$PROJECT_ROOT/Makefile" _inject_common_mk > /dev/null)
+
+# Check symlinks
+if [ ! -L "$SCENARIO_4/components/mock-ok/_mk/help.mk" ]; then
+    echo "ERROR: _mk/help.mk is not a symlink"
+    exit 1
+fi
+if [ ! -L "$SCENARIO_4/components/mock-ok/DOTFILES_COMMON_RULES.md" ]; then
+    echo "ERROR: DOTFILES_COMMON_RULES.md is not a symlink"
+    exit 1
+fi
+
+echo "[OK] _inject_common_mk and symlinks PASSED."
+
 echo "==> [Test] All mock-based integration tests PASSED!"
