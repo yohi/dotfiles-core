@@ -21,15 +21,21 @@ NC     := \033[0m # No Color
 
 # Load .env file and export variables, handling potential parsing errors safely without eval
 LOAD_ENV = if [ -f .env ]; then \
-        while IFS= read -r line || [ -n "$$line" ]; do \
-                [[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
-                if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
-                        export "$${BASH_REMATCH[1]}=$${BASH_REMATCH[2]}"; \
-                else \
-                        echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
-                        exit 1; \
-                fi; \
-        done < .env; \
+	while IFS= read -r line || [ -n "$$line" ]; do \
+		[[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
+		if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
+			key="$${BASH_REMATCH[1]}"; \
+			val="$${BASH_REMATCH[2]}"; \
+			if [[ "$$val" =~ ^\"(.*)\"$$ ]] || [[ "$$val" =~ ^\x27(.*)\x27$$ ]]; then \
+				val="$${BASH_REMATCH[1]}"; \
+			fi; \
+			printf -v "$$key" "%s" "$$val"; \
+			export "$$key"; \
+		else \
+			echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
+			exit 1; \
+		fi; \
+	done < .env; \
 fi
 # Reusable macro to dispatch a target to all components
 define dispatch
