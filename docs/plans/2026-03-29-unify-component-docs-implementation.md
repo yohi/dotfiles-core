@@ -16,11 +16,11 @@
 - Read: `repos.yaml`
 
 **Step 1: Extract component list from repos.yaml**
-Run: `grep -v "repositories:" repos.yaml | grep ":" | sed 's/://' | xargs`
+Run: `grep -E '^[[:space:]]{2}[A-Za-z0-9._-]+:' repos.yaml | sed 's/^[[:space:]]\{2\}//; s/:$//' | xargs`
 Expected: List of components (`dotfiles-zsh`, `dotfiles-vim`, etc.)
 
 **Step 2: Verify all directories exist**
-Run: `for d in $(grep -v "repositories:" repos.yaml | grep ":" | sed 's/://' | xargs); do ls -d components/$d; done`
+Run: `for d in $(grep -E '^[[:space:]]{2}[A-Za-z0-9._-]+:' repos.yaml | sed 's/^[[:space:]]\{2\}//; s/:$//' | xargs); do ls -d components/$d; done`
 Expected: List of existing directories.
 
 ---
@@ -48,7 +48,7 @@ Insert after the first `#` or `概要` section.
 ```
 
 **Step 2: Apply AGENTS.md template**
-Insert before `## STRUCTURE`.
+Insert before the first occurrence of `## STRUCTURE` or `## PROJECT KNOWLEDGE BASE`.
 ```markdown
 ## COMPONENT LAYOUT CONVENTION
 
