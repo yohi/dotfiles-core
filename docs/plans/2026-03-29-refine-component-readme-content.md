@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Refine dotfiles-zsh README.md
+## Task 1: Refine dotfiles-zsh README.md
 **Files:**
 - Modify: `components/dotfiles-zsh/README.md`
 
@@ -24,7 +24,7 @@
 
 ---
 
-### Task 2: Refine dotfiles-vim README.md
+## Task 2: Refine dotfiles-vim README.md
 **Files:**
 - Modify: `components/dotfiles-vim/README.md`
 
@@ -34,7 +34,7 @@
 
 ---
 
-### Task 3: Refine dotfiles-git README.md
+## Task 3: Refine dotfiles-git README.md
 **Files:**
 - Modify: `components/dotfiles-git/README.md`
 
@@ -43,7 +43,7 @@
 
 ---
 
-### Task 4: Refine dotfiles-ai README.md
+## Task 4: Refine dotfiles-ai README.md
 **Files:**
 - Modify: `components/dotfiles-ai/README.md`
 
@@ -52,7 +52,7 @@
 
 ---
 
-### Task 5: Refine dotfiles-system README.md
+## Task 5: Refine dotfiles-system README.md
 **Files:**
 - Modify: `components/dotfiles-system/README.md`
 
@@ -65,7 +65,7 @@
 
 ---
 
-### Task 6: Refine dotfiles-term README.md
+## Task 6: Refine dotfiles-term README.md
 **Files:**
 - Modify: `components/dotfiles-term/README.md`
 
@@ -75,7 +75,7 @@
 
 ---
 
-### Task 7: Refine dotfiles-gnome README.md
+## Task 7: Refine dotfiles-gnome README.md
 **Files:**
 - Modify: `components/dotfiles-gnome/README.md`
 
@@ -87,7 +87,7 @@
 
 ---
 
-### Task 8: Refine dotfiles-ide README.md
+## Task 8: Refine dotfiles-ide README.md
 **Files:**
 - Modify: `components/dotfiles-ide/README.md`
 
@@ -97,6 +97,6 @@
 
 ---
 
-### Task 9: Final Commit and Push
+## Task 9: Final Commit and Push
 **Step 1: Commit with `docs: READMEの記述を実態に合わせて精査・更新`**
 **Step 2: Push to `feature/unify-docs` branch for all components**
