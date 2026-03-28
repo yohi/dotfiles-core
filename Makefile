@@ -19,11 +19,24 @@ YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m # No Color
 
-# Load .env file and export variables, handling potential parsing errors
+# Load .env file and export variables, handling potential parsing errors safely without eval
 LOAD_ENV = if [ -f .env ]; then \
-	eval "$$(grep -v '^[[:space:]]*\#' .env 2>/dev/null | sed -e 's/[[:space:]]*\#.*//' -e 's/^[[:space:]]*//' -e '/^[[:space:]]*$$/d' -e "s/'/'\\\\''/g" -e "s/^\([^=]*\)=\(.*\)$$/export \1='\2';/")"; \
+	while IFS= read -r line || [ -n "$$line" ]; do \
+		[[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
+		if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
+			key="$${BASH_REMATCH[1]}"; \
+			val="$${BASH_REMATCH[2]}"; \
+			if [[ "$$val" =~ ^\"(.*)\"$$ ]] || [[ "$$val" =~ ^\x27(.*)\x27$$ ]]; then \
+				val="$${BASH_REMATCH[1]}"; \
+			fi; \
+			printf -v "$$key" "%s" "$$val"; \
+			export "$$key"; \
+		else \
+			echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
+			exit 1; \
+		fi; \
+	done < .env; \
 fi
-
 # Reusable macro to dispatch a target to all components
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
@@ -34,6 +47,12 @@ define dispatch
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
+				if [ $$ret -ne 0 ] && ! echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
+					echo -e "$(RED)[ERROR] Target detection failed in $$dir:$(NC)" >&2; \
+					echo "$$err_out" | sed 's/^/  /' >&2; \
+					fail_count=$$((fail_count+1)); \
+					continue; \
+				fi; \
 				if [ $$ret -eq 0 ]; then \
 					total_count=$$((total_count+1)); \
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
@@ -43,12 +62,8 @@ define dispatch
 					else \
 						echo -e "$(GREEN)[SUCCESS] make $(1) completed in $$dir$(NC)"; \
 					fi; \
-				elif echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
-					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
 				else \
-					echo -e "$(RED)[ERROR] Target detection failed in $$dir:$(NC)" >&2; \
-					echo "$$err_out" | sed 's/^/  /' >&2; \
-					fail_count=$$((fail_count+1)); \
+					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
 				fi; \
 			fi; \
 		done; \
@@ -61,7 +76,6 @@ define dispatch
 		fi; \
 	fi
 endef
-
 .PHONY: help init sync link secrets setup clean test status diff \
         _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw _inject_common_mk _check_docker .clean-safety
 
@@ -144,6 +158,7 @@ diff: ## Check git diff of all components
 	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
+# Note: Symlink depth depends on whether file is in root (2 levels) or _mk/ (3 levels)
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 	        echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
@@ -249,4 +264,3 @@ clean:
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
-
