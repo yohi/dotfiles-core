@@ -15,6 +15,7 @@ run_test_make() {
     local target=$1
     local components_dir=$2
     local should_succeed=$3
+    local exit_code
     
     echo "--- Testing target '$target' with components in '$components_dir' ---"
     
