@@ -10,6 +10,21 @@
 - **Flat Layout**: Git Submodule を排除し、`components/` 配下に各リポジトリを並列に配置することで、管理の複雑さを解消します。
 - **Secret Management**: Bitwarden CLI (`bw`) を使用し、シークレットを動的に解決します。
 
+## 📦 Components
+
+Orchestrator によって管理される全コンポーネントのリポジトリ一覧です。
+
+| Component | Repository Link |
+| :--- | :--- |
+| **dotfiles-zsh** | [yohi/dotfiles-zsh](https://github.com/yohi/dotfiles-zsh) |
+| **dotfiles-vim** | [yohi/dotfiles-vim](https://github.com/yohi/dotfiles-vim) |
+| **dotfiles-git** | [yohi/dotfiles-git](https://github.com/yohi/dotfiles-git) |
+| **dotfiles-term** | [yohi/dotfiles-term](https://github.com/yohi/dotfiles-term) |
+| **dotfiles-ide** | [yohi/dotfiles-ide](https://github.com/yohi/dotfiles-ide) |
+| **dotfiles-ai** | [yohi/dotfiles-ai](https://github.com/yohi/dotfiles-ai) |
+| **dotfiles-gnome** | [yohi/dotfiles-gnome](https://github.com/yohi/dotfiles-gnome) |
+| **dotfiles-system** | [yohi/dotfiles-system](https://github.com/yohi/dotfiles-system) |
+
 ## 📂 Directory Structure
 
 ```text
