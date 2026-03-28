@@ -26,12 +26,12 @@ run_test_make() {
     set -e
     
     if [ "$should_succeed" = "true" ]; then
-        if [ $exit_code -ne 0 ]; then
+        if [ "$exit_code" -ne 0 ]; then
             echo "ERROR: Expected success, but got exit code $exit_code"
             exit 1
         fi
     else
-        if [ $exit_code -eq 0 ]; then
+        if [ "$exit_code" -eq 0 ]; then
             echo "ERROR: Expected failure, but got exit code 0"
             exit 1
         fi
