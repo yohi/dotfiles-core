@@ -19,11 +19,17 @@ YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m # No Color
 
-# Load .env file and export variables, handling potential parsing errors
+# Load .env file and export variables, handling potential parsing errors safely without eval
 LOAD_ENV = if [ -f .env ]; then \
-        ENV_STR=$$(grep -v '^[[:space:]]*\#' .env 2>/dev/null | sed -e 's/[[:space:]]*\#.*//' -e 's/^[[:space:]]*//' -e '/^[[:space:]]*$$/d' -e "s/'/'\\\\''/g" -e "s/^\([^=]*\)=\(.*\)$$/export \1='\2';/"); \
-        ( eval "$$ENV_STR" ) 2>/dev/null || { echo "[ERROR] Failed to parse .env in $$(pwd)" >&2; exit 1; }; \
-        eval "$$ENV_STR"; \
+        while IFS= read -r line || [ -n "$$line" ]; do \
+                [[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
+                if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
+                        export "$${BASH_REMATCH[1]}=$${BASH_REMATCH[2]}"; \
+                else \
+                        echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
+                        exit 1; \
+                fi; \
+        done < .env; \
 fi
 # Reusable macro to dispatch a target to all components
 define dispatch
