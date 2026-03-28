@@ -21,7 +21,7 @@ NC     := \033[0m # No Color
 
 # Load .env file and export variables, handling potential parsing errors
 LOAD_ENV = if [ -f .env ]; then \
-	eval "$$(grep -v '^[[:space:]]*#' .env 2>/dev/null | sed -e 's/[[:space:]]*#.*//' -e 's/^[[:space:]]*//' -e '/^[[:space:]]*$$/d' -e "s/'/'\\\\''/g" -e "s/^\([^=]*\)=\(.*\)$$/export \1='\2';/")"; \
+	eval "$$(grep -v '^[[:space:]]*\#' .env 2>/dev/null | sed -e 's/[[:space:]]*\#.*//' -e 's/^[[:space:]]*//' -e '/^[[:space:]]*$$/d' -e "s/'/'\\\\''/g" -e "s/^\([^=]*\)=\(.*\)$$/export \1='\2';/")"; \
 fi
 
 # Reusable macro to dispatch a target to all components
