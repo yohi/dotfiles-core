@@ -10,9 +10,15 @@ Ensure consistency across all component repositories (`components/dotfiles-*`) b
 
 ## 3. Standard Templates
 
-### 3.1 README.md (Japanese)
-To be inserted after the "Overview" (概要) section:
+### 3.1 README.md (Common Structure)
+The first half of the `README.md` should follow this exact sequence:
 
+1. **Title**: `# dotfiles-<name>`
+2. **Overview**: Brief 1-3 line description.
+3. **Management and Dependencies**: Standardized relationship with `dotfiles-core`.
+4. **Directory Structure**: Visual representation of the repository content.
+
+#### Management and Dependencies (Section Template)
 ```markdown
 ## 管理と依存関係
 
@@ -26,6 +32,11 @@ To be inserted after the "Overview" (概要) section:
 
 推奨される使用方法は、`dotfiles-core` から `make setup` を実行することです。
 ```
+
+#### Directory Structure (Section Template)
+The header MUST be `## ディレクトリ構成`.
+
+---
 
 ### 3.2 AGENTS.md (English)
 To be inserted before the `## STRUCTURE` or `## PROJECT KNOWLEDGE BASE` section:
