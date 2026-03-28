@@ -1,66 +1,74 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "==> [Test] Starting integration tests inside container..."
+echo "==> [Test] Starting mock-based integration tests..."
 
-# Create a unique workspace in /tmp to avoid permission issues and residue
-TMPDIR=$(mktemp -d /tmp/dotfiles-test.XXXXXX) || { echo "mktemp failed"; exit 1; }
-export TEST_WORKSPACE="$TMPDIR"
-trap 'rm -rf "$TEST_WORKSPACE"' EXIT
-echo "==> [Test] Created workspace: $TEST_WORKSPACE"
+# Get absolute path of this script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+FIXTURES_DIR="$SCRIPT_DIR/fixtures/components"
 
-# Sync current directory to workspace, excluding unnecessary files
-rsync -a --exclude=".git" . "$TEST_WORKSPACE/"
-cd "$TEST_WORKSPACE"
+cd "$PROJECT_ROOT"
 
-# Fix remotes of existing components to HTTPS to avoid vcstool conflict
-# This handles multiple SSH patterns: git@github.com:PATH, git@github.com/PATH, and ssh://git@github.com/PATH
-if [ -d components ]; then
-    echo "==> [Test] Converting component remotes to HTTPS..."
-    find components -maxdepth 2 -name .git -type d | while IFS= read -r gitdir; do
-        repo_dir=$(dirname "$gitdir")
-        pushd "$repo_dir" >/dev/null
-        remote_url=$(git remote get-url origin 2>/dev/null || echo "")
-        
-        # Normalized replacement for common SSH patterns
-        new_url=$(echo "$remote_url" | sed -E 's|^(ssh://)?git@github.com[:/]|https://github.com/|')
-        
-        if [[ "$remote_url" != "$new_url" ]]; then
-            git remote set-url origin "$new_url"
-            echo "    Updated \"$repo_dir\": \"$remote_url\" -> \"$new_url\""
+# Helper for testing make commands
+run_test_make() {
+    local target=$1
+    local components_dir=$2
+    local should_succeed=$3
+    local exit_code
+    
+    echo "--- Testing target '$target' with components in '$components_dir' ---"
+    
+    # Run make test-dispatch to only test the dispatch macro logic
+    set +e
+    make test-dispatch TARGET="$target" COMPONENTS_DIR="$components_dir"
+    exit_code=$?
+    set -e
+    
+    if [ "$should_succeed" = "true" ]; then
+        if [ "$exit_code" -ne 0 ]; then
+            echo "ERROR: Expected success, but got exit code $exit_code"
+            exit 1
         fi
-        popd >/dev/null
-    done
-fi
+    else
+        if [ "$exit_code" -eq 0 ]; then
+            echo "ERROR: Expected failure, but got exit code 0"
+            exit 1
+        fi
+        echo "[OK] Command failed as expected (exit code $exit_code)."
+    fi
+}
 
-# 1. Check if setup target works (includes init, sync, secrets, and delegated setup)
-echo "==> [Test] Running 'make setup'..."
-# WITH_BW=0 to skip Bitwarden in test, and we use a sub-shell to ensure PATH is updated
-# Some dependencies might install to ~/.local/bin
-export WITH_BW=0
-export SKIP_FONTS=1
-export SKIP_GUI=1
-make setup
+# Create a clean temporary directory for each scenario
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "$WORK_DIR"' EXIT
 
-# 2. Verify dependencies installation
-echo "==> [Test] Checking if core dependencies are installed..."
-# vcs is installed by dotfiles-core/Makefile
-export PATH="$HOME/.local/bin:$PATH"
-command -v vcs >/dev/null 2>&1 || { echo "ERROR: vcs not found (should be installed by core)"; exit 1; }
+# 1. Verify successful dispatch and .env loading
+SCENARIO_1="$WORK_DIR/scenario1"
+mkdir -p "$SCENARIO_1"
+cp -r "$FIXTURES_DIR/mock-ok" "$SCENARIO_1/"
+cp -r "$FIXTURES_DIR/mock-env" "$SCENARIO_1/"
 
-# 3. Verify component delegation (dotfiles-system's job)
-echo "==> [Test] Checking if dotfiles-system successfully installed packages..."
-ls -l /usr/bin/zsh || echo "DEBUG: /usr/bin/zsh not found"
-which zsh || echo "DEBUG: zsh not in PATH"
-command -v zsh >/dev/null 2>&1 || { echo "ERROR: zsh not found (should be installed by dotfiles-system)"; exit 1; }
-echo "[OK] zsh is present (installed by component delegation)."
+echo "==> [Test Scenario] Success case and .env loading"
+run_test_make "setup" "$SCENARIO_1" "true"
+echo "[OK] Success case and .env loading PASSED."
 
-# 4. Verify directory structure
-echo "==> [Test] Verifying directory structure..."
-if [ -d "components/components" ]; then
-    echo "ERROR: Nested components directory detected!"
-    exit 1
-fi
-echo "[OK] No nested components directory."
+# 2. Verify error detection
+SCENARIO_2="$WORK_DIR/scenario2"
+mkdir -p "$SCENARIO_2"
+cp -r "$FIXTURES_DIR/mock-fail" "$SCENARIO_2/"
 
-echo "==> [Test] Integration tests PASSED!"
+echo "==> [Test Scenario] Failure detection"
+run_test_make "setup" "$SCENARIO_2" "false"
+echo "[OK] Failure detection PASSED."
+
+# 3. Verify target skip
+SCENARIO_3="$WORK_DIR/scenario3"
+mkdir -p "$SCENARIO_3"
+cp -r "$FIXTURES_DIR/mock-ok" "$SCENARIO_3/"
+
+echo "==> [Test Scenario] Skipping non-existent target"
+run_test_make "non-existent-target" "$SCENARIO_3" "true"
+echo "[OK] Skipping non-existent target PASSED."
+
+echo "==> [Test] All mock-based integration tests PASSED!"

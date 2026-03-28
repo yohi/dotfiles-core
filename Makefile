@@ -19,28 +19,39 @@ YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m # No Color
 
+# Load .env file and export variables, handling potential parsing errors
+LOAD_ENV = if [ -f .env ]; then \
+	eval "$$(grep -v '^[[:space:]]*\#' .env 2>/dev/null | sed -e 's/[[:space:]]*\#.*//' -e 's/^[[:space:]]*//' -e '/^[[:space:]]*$$/d' -e "s/'/'\\\\''/g" -e "s/^\([^=]*\)=\(.*\)$$/export \1='\2';/")"; \
+fi
+
 # Reusable macro to dispatch a target to all components
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
 		fail_count=0; \
 		total_count=0; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
-				if $(MAKE) -C "$$dir" -n $(1) >/dev/null 2>&1; then \
+		for dir in "$(COMPONENTS_DIR)"/*; do \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
+				ret=$$?; \
+				if [ $$ret -eq 0 ]; then \
 					total_count=$$((total_count+1)); \
 					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
-					if ! $(MAKE) -C "$$dir" $(1); then \
+					if ! ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) $(1) ); then \
 						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
 						fail_count=$$((fail_count+1)); \
 					else \
 						echo -e "$(GREEN)[SUCCESS] make $(1) completed in $$dir$(NC)"; \
 					fi; \
-				else \
+				elif echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
 					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
+				else \
+					echo -e "$(RED)[ERROR] Target detection failed in $$dir:$(NC)" >&2; \
+					echo "$$err_out" | sed 's/^/  /' >&2; \
+					fail_count=$$((fail_count+1)); \
 				fi; \
 			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		done; \
 		echo "---"; \
 		if [ $$fail_count -gt 0 ]; then \
 			echo -e "$(RED)Summary for $(1): $$total_count attempted, $$fail_count failures.$(NC)"; \
@@ -136,15 +147,15 @@ diff: ## Check git diff of all components
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
-		while IFS= read -r -d '' dir; do \
-			if [ -f "$$dir/Makefile" ]; then \
+		for dir in "$(COMPONENTS_DIR)"/*; do \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				mkdir -p "$$dir/_mk"; \
 				cp common-mk/idempotency.mk "$$dir/_mk/" || { \
 					echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; \
 					exit 1; \
 				}; \
 			fi; \
-		done < <(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d -print0); \
+		done; \
 	fi
 
 link: _inject_common_mk
@@ -209,7 +220,12 @@ setup: sync secrets _inject_common_mk
 	$(call dispatch,setup)
 	@echo -e "$(GREEN)==> Setup Complete!$(NC)"
 
+# Internal target for testing the dispatch macro
+test-dispatch:
+	$(call dispatch,$(TARGET))
+
 _check_docker:
+
 	@command -v docker >/dev/null 2>&1 || { echo -e "$(RED)[ERROR] Docker is not available on PATH.$(NC)" >&2; exit 1; }
 
 test: _check_docker
@@ -234,3 +250,4 @@ clean:
 	else \
 		rm -rf "$(COMPONENTS_DIR)"/*; \
 	fi
+

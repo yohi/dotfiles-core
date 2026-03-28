@@ -1,5 +1,5 @@
 # Components (Managed by vcstool)
-components/
+/components/
 
 # Local secrets & temp files
 .bw_session
@@ -12,3 +12,4 @@ components/
 
 # dots
 dots
+.worktrees/

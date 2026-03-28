@@ -83,5 +83,15 @@ make setup
 Bitwarden CLI (`bw`) を使用します。
 `make secrets` を実行することで、セッションの確立と必要なクレデンシャルの取得を行います。
 
+## ⚙️ Component Configuration (.env)
+
+各コンポーネント（`components/dotfiles-*`）のルートディレクトリに `.env` ファイルを配置することで、コンポーネント固有の環境変数を設定できます。
+
+### 📋 記述ルール
+- **変数代入のみ**: `NAME=value` のような単純な変数代入のみを記述してください。
+- **実行コマンドの禁止**: `source` コマンドで読み込まれるため、任意のシェルコマンドが実行可能ですが、副作用を防ぐため変数定義以外のロジックは含めないでください。
+
+これらのファイルは、Orchestrator の `Makefile` および `dotfiles-zsh` の初期化時に自動的に読み込まれます。
+
 ---
 Created by Gemini CLI based on @SPEC.md.
