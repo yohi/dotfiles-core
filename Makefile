@@ -80,17 +80,17 @@ endef
         _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw _inject_common_mk _check_docker .clean-safety
 
 help:
-	@echo -e "$(BLUE)Usage: make [target]$(NC)"
-	@echo "Targets:"
-	@echo "  init     Install dependencies (vcstool, jq, curl) and clone repos"
-	@echo "  sync     Update all components using vcstool"
-	@echo "  status   Check git status of all components"
-	@echo "  diff     Check git diff of all components"
-	@echo "  link     Apply symbolic links (delegated to components)"
-	@echo "  secrets  Fetch credentials from Bitwarden"
-	@echo "  setup    Run full setup sequence including component delegation"
-	@echo "  test     Run integration tests using Docker"
-	@echo "  clean    Remove generated files and reset state"
+	@echo -e "$(BLUE)使用法: make [ターゲット]$(NC)"
+	@echo "ターゲット:"
+	@echo "  init     依存関係（vcstool, jq, curl）のインストールとリポジトリのクローンを行います"
+	@echo "  sync     vcstoolを使用してすべてのコンポーネントを更新します"
+	@echo "  status   すべてのコンポーネントのGitステータスを確認します"
+	@echo "  diff     すべてのコンポーネントのGit差分を確認します"
+	@echo "  link     シンボリックリンクを適用します（各コンポーネントに委任されます）"
+	@echo "  secrets  Bitwardenから認証情報を取得します"
+	@echo "  setup    コンポーネントへの委任を含むフルセットアップシーケンスを実行します"
+	@echo "  test     Dockerを使用して統合テストを実行します"
+	@echo "  clean    生成されたファイルを削除し、状態をリセットします"
 
 SSH_CONNECT_TIMEOUT ?= 3
 
@@ -150,11 +150,11 @@ sync: init $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
 
-status: ## Check git status of all components
+status: ## すべてのコンポーネントのGitステータスを確認します
 	@echo -e "$(BLUE)==> Checking status of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs status $(COMPONENTS_DIR)
 
-diff: ## Check git diff of all components
+diff: ## すべてのコンポーネントのGit差分を確認します
 	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
