@@ -9,9 +9,9 @@ define create_marker
 	@touch "$(MARKER_DIR)/$(1)"
 endef
 
-# マーカーの存在確認: $(call check_marker,name)
+# マーカーの存在とバージョンの確認: $(call check_marker,name,version)
 define check_marker
-	test -f "$(MARKER_DIR)/$(1)"
+	[ -f "$(MARKER_DIR)/$(1).version" ] && [ "$$(cat "$(MARKER_DIR)/$(1).version")" = "$(2)" ]
 endef
 
 # コマンドの存在確認: $(call check_command,command)
@@ -21,12 +21,12 @@ endef
 
 # スキップメッセージの表示: $(call IDEMPOTENCY_SKIP_MSG,name)
 define IDEMPOTENCY_SKIP_MSG
-@echo "✅ $(1) は既に完了しているためスキップします。"
+	@echo "✅ $(1) は既に完了しているためスキップします。"
 endef
 
 # 共通ターゲット: Node.jsの確認
-ifeq ($(REQUIRE_NODEJS),1)
 .PHONY: check-nodejs
 check-nodejs:
-	@command -v node >/dev/null 2>&1 || { echo "❌ Node.js がインストールされていません"; exit 1; }
+ifeq ($(REQUIRE_NODEJS),1)
+	@$(call check_command,node) || { echo "❌ Node.js がインストールされていません"; exit 1; }
 endif

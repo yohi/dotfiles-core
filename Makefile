@@ -19,24 +19,12 @@ YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m # No Color
 
-# Load .env file and export variables, handling potential parsing errors safely without eval
-LOAD_ENV = if [ -f .env ]; then \
-	while IFS= read -r line || [ -n "$$line" ]; do \
-		[[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
-		if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
-			key="$${BASH_REMATCH[1]}"; \
-			val="$${BASH_REMATCH[2]}"; \
-			if [[ "$$val" =~ ^\"(.*)\"$$ ]] || [[ "$$val" =~ ^\x27(.*)\x27$$ ]]; then \
-				val="$${BASH_REMATCH[1]}"; \
-			fi; \
-			printf -v "$$key" "%s" "$$val"; \
-			export "$$key"; \
-		else \
-			echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
-			exit 1; \
-		fi; \
-	done < .env; \
-fi
+# Default target
+.DEFAULT_GOAL := help
+
+# Standard help and core rules (direct inclusion in root)
+include common-mk/help.mk
+
 # Reusable macro to dispatch a target to all components
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
@@ -76,25 +64,38 @@ define dispatch
 		fi; \
 	fi
 endef
-.PHONY: help init sync link secrets setup clean test status diff \
-        _skip_secrets _check_bw_tools _ensure_bw_auth _unlock_bw _inject_common_mk _check_docker .clean-safety
 
-help:
-	@echo -e "$(BLUE)使用法: make [ターゲット]$(NC)"
-	@echo "ターゲット:"
-	@echo "  init     依存関係（vcstool, jq, curl）のインストールとリポジトリのクローンを行います"
-	@echo "  sync     vcstoolを使用してすべてのコンポーネントを更新します"
-	@echo "  status   すべてのコンポーネントのGitステータスを確認します"
-	@echo "  diff     すべてのコンポーネントのGit差分を確認します"
-	@echo "  link     シンボリックリンクを適用します（各コンポーネントに委任されます）"
-	@echo "  secrets  Bitwardenから認証情報を取得します"
-	@echo "  setup    コンポーネントへの委任を含むフルセットアップシーケンスを実行します"
-	@echo "  test     Dockerを使用して統合テストを実行します"
-	@echo "  clean    生成されたファイルを削除し、状態をリセットします"
+# Load .env file and export variables, handling potential parsing errors safely without eval
+LOAD_ENV = if [ -f .env ]; then \
+	while IFS= read -r line || [ -n "$$line" ]; do \
+		[[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
+		if [[ "$$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$$ ]]; then \
+			key="$${BASH_REMATCH[1]}"; \
+			val="$${BASH_REMATCH[2]}"; \
+			if [[ "$$val" =~ ^\"(.*)\"$$ ]] || [[ "$$val" =~ ^\x27(.*)\x27$$ ]]; then \
+				val="$${BASH_REMATCH[1]}"; \
+			fi; \
+			printf -v "$$key" "%s" "$$val"; \
+			export "$$key"; \
+		else \
+			echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
+			exit 1; \
+		fi; \
+	done < .env; \
+fi
+
+.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker
+
+ifeq ($(WITH_BW),1)
+SECRETS_DEPS := _unlock_bw
+endif
+
+all: ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
+	$(call dispatch,all)
 
 SSH_CONNECT_TIMEOUT ?= 3
 
-$(REPOS_YAML_RESOLVED): $(REPOS_YAML)
+$(REPOS_YAML_RESOLVED): $(REPOS_YAML) ## リポジトリ設定ファイルのURLを解決（SSH/HTTPS）します
 	@cp $(REPOS_YAML) $@ || { \
 		ret=$$?; \
 		echo -e "$(RED)[ERROR] Failed to copy $(REPOS_YAML) to $@ (exit $$ret)$(NC)" >&2; \
@@ -121,11 +122,16 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML)
 		fi; \
 	fi
 
-init: $(REPOS_YAML_RESOLVED)
-	@echo -e "$(BLUE)==> Initializing dependencies...$(NC)"
+_install-deps:
 	@if command -v apt-get >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update || { echo "Failed to apt-get update in _install-deps"; exit 1; }; \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata python3-pip jq curl git openssh-client ca-certificates python3-setuptools || { echo "Failed to install packages in _install-deps"; exit 1; }; \
+	fi
+
+_set-timezone:
+	@if command -v apt-get >/dev/null 2>&1; then \
+		SUDO=$$(command -v sudo || true); \
 		if [ ! -e "/usr/share/zoneinfo/$(TZ_OVERRIDE)" ]; then \
 			echo -e "$(RED)[ERROR] Timezone '$(TZ_OVERRIDE)' not found in /usr/share/zoneinfo/$(NC)" >&2; \
 			exit 1; \
@@ -135,16 +141,19 @@ init: $(REPOS_YAML_RESOLVED)
 			exit 1; \
 		}; \
 	fi
+
+_install-vcstool:
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
 		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
 	fi
-	# Note: Ubuntu 24.10+ uses PEP 668. Use --break-system-packages or venv if pip is necessary.
+
+init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
+	@echo -e "$(BLUE)==> Initializing dependencies and importing components...$(NC)"
 	mkdir -p $(COMPONENTS_DIR)
-	# PATH inclusion for potential local installs
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 
-sync: init $(REPOS_YAML_RESOLVED)
+sync: init $(REPOS_YAML_RESOLVED) ## コンポーネントのソースコードを最新化します
 	@echo -e "$(BLUE)==> Syncing all components...$(NC)"
 	mkdir -p $(COMPONENTS_DIR)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
@@ -158,31 +167,19 @@ diff: ## すべてのコンポーネントのGit差分を確認します
 	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
-# Note: Symlink depth depends on whether file is in root (2 levels) or _mk/ (3 levels)
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 	        echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
 	        for dir in "$(COMPONENTS_DIR)"/*; do \
 	                if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 	                        mkdir -p "$$dir/_mk"; \
-	                        ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
-	                        ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
-	                        ln -sf ../../../common-mk/core.mk "$$dir/_mk/core.mk" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
-	                        ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md" || { echo -e "$(RED)[ERROR] Failed to inject into $$dir$(NC)" >&2; exit 1; }; \
+	                        ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk"; \
+	                        ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk"; \
+	                        ln -sf ../../../common-mk/core.mk "$$dir/_mk/core.mk"; \
+	                        ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md"; \
 	                fi; \
 	        done; \
         fi
-link: _inject_common_mk
-	@echo -e "$(BLUE)==> Delegating link to components...$(NC)"
-	$(call dispatch,link)
-
-ifeq ($(WITH_BW),1)
-SECRETS_DEPS := _unlock_bw
-else
-SECRETS_DEPS := _skip_secrets
-endif
-
-secrets: init $(SECRETS_DEPS)
 
 _skip_secrets:
 	@echo -e "$(YELLOW)[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable.$(NC)"
@@ -229,7 +226,9 @@ _unlock_bw: _ensure_bw_auth
 		exit 1; \
 	fi
 
-setup: sync secrets _inject_common_mk
+secrets: init $(SECRETS_DEPS) ## Bitwardenからシークレット情報を取得します
+
+setup: sync secrets _inject_common_mk ## すべてのコンポーネントのセットアップ（設定適用）を実行します
 	@echo -e "$(BLUE)==> Delegating to component-specific setup...$(NC)"
 	$(call dispatch,setup)
 	@echo -e "$(GREEN)==> Setup Complete!$(NC)"
