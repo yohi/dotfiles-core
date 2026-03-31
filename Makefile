@@ -1,10 +1,28 @@
 # dotfiles-core: Orchestrator Makefile
 SHELL := /bin/bash
 
+# ==============================================================================
+# Usage Guide (各ターゲットの使い分け)
+# ==============================================================================
+#  make init    : [初回] 依存パッケージのインストールとリポジトリのクローン。
+#  make sync    : [更新] 全コンポーネントのリポジトリを最新状態に同期。
+#  make secrets : [機密] BitwardenからAPIキー等の機密情報を取得。
+#  make setup   : [設定] シンボリックリンクの配備など設定の適用を実行。
+#  make all     : [一括] sync -> secrets -> setup を全コンポーネントで実行。
+#  make status  : [確認] 全コンポーネントのGitステータスを一括表示。
+#  make clean   : [掃除] 一時ファイルやセッションの削除。
+# ==============================================================================
+
+# Default target
+.DEFAULT_GOAL := help
+
 COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml
 REPOS_YAML_RESOLVED := .repos.resolved.yaml
 STOW_TARGET := $(HOME)
+
+# Standard help and core rules
+include common-mk/help.mk
 
 # Path for storing Bitwarden session key (outside repository)
 BW_SESSION_FILE ?= $(shell echo $${XDG_RUNTIME_DIR:-$$HOME/.cache}/bw_session)
@@ -12,18 +30,21 @@ BW_SESSION_FILE ?= $(shell echo $${XDG_RUNTIME_DIR:-$$HOME/.cache}/bw_session)
 # Timezone for non-interactive setup
 TZ_OVERRIDE ?= Asia/Tokyo
 
-# Colors
+# Colors and Symbols
 RED    := \033[0;31m
 GREEN  := \033[0;32m
 YELLOW := \033[0;33m
 BLUE   := \033[0;34m
+MAGENTA:= \033[0;35m
+CYAN   := \033[0;36m
+BOLD   := \033[1m
 NC     := \033[0m # No Color
 
-# Default target
-.DEFAULT_GOAL := help
-
-# Standard help and core rules (direct inclusion in root)
-include common-mk/help.mk
+T_START := $(BLUE)$(BOLD)▶$(NC)
+T_OK    := $(GREEN)$(BOLD)✔$(NC)
+T_ERR   := $(RED)$(BOLD)✘$(NC)
+T_SKIP  := $(YELLOW)$(BOLD)➖$(NC)
+T_ITEM  := $(CYAN)$(BOLD)•$(NC)
 
 # Reusable macro to dispatch a target to all components
 define dispatch
@@ -31,41 +52,45 @@ define dispatch
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
 		fail_count=0; \
 		total_count=0; \
+		echo -e "$(MAGENTA)$(BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(NC)"; \
+		echo -e "$(MAGENTA)$(BOLD)┃ Dispatching '$(1)' to all components...$(NC)"; \
+		echo -e "$(MAGENTA)$(BOLD)┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛$(NC)"; \
 		for dir in "$(COMPONENTS_DIR)"/*; do \
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+				component=$$(basename "$$dir"); \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
 				if [ $$ret -ne 0 ] && ! echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
-					echo -e "$(RED)[ERROR] Target detection failed in $$dir:$(NC)" >&2; \
-					echo "$$err_out" | sed 's/^/  /' >&2; \
+					echo -e "  $(T_ERR) $(RED)$(BOLD)$$component:$(NC) Target detection failed"; \
+					echo "$$err_out" | sed 's/^/      /' >&2; \
 					fail_count=$$((fail_count+1)); \
 					continue; \
 				fi; \
 				if [ $$ret -eq 0 ]; then \
 					total_count=$$((total_count+1)); \
-					echo -e "$(BLUE)==> Running make $(1) in $$dir...$(NC)"; \
-					if ! ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) $(1) ); then \
-						echo -e "$(RED)[ERROR] make $(1) failed in $$dir$(NC)" >&2; \
+					echo -e "  $(T_START) $(BLUE)Executing '$(1)' in $(BOLD)$$component$(NC)..."; \
+					if ! ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) --no-print-directory $(1) ); then \
+						echo -e "  $(T_ERR) $(RED)$(BOLD)$$component:$(NC) $(RED)FAILED$(NC)"; \
 						fail_count=$$((fail_count+1)); \
 					else \
-						echo -e "$(GREEN)[SUCCESS] make $(1) completed in $$dir$(NC)"; \
+						echo -e "  $(T_OK) $(GREEN)$(BOLD)$$component:$(NC) $(GREEN)SUCCESS$(NC)"; \
 					fi; \
 				else \
-					echo -e "$(YELLOW)[SKIP] $$dir (no $(1) target)$(NC)"; \
+					echo -e "  $(T_SKIP) $(YELLOW)$$component:$(NC) skipped (no '$(1)' target)"; \
 				fi; \
 			fi; \
 		done; \
-		echo "---"; \
+		echo -e "$(MAGENTA)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"; \
 		if [ $$fail_count -gt 0 ]; then \
-			echo -e "$(RED)Summary for $(1): $$total_count attempted, $$fail_count failures.$(NC)"; \
+			echo -e "$(RED)$(BOLD)  SUMMARY: $$total_count attempted, $$fail_count failed.$(NC)"; \
 			exit 1; \
 		else \
-			echo -e "$(GREEN)Summary for $(1): $$total_count attempted, all succeeded.$(NC)"; \
+			echo -e "$(GREEN)$(BOLD)  SUMMARY: All $$total_count components succeeded! ✨$(NC)"; \
 		fi; \
 	fi
 endef
 
-# Load .env file and export variables, handling potential parsing errors safely without eval
+# Load .env file and export variables
 LOAD_ENV = if [ -f .env ]; then \
 	while IFS= read -r line || [ -n "$$line" ]; do \
 		[[ "$$line" =~ ^[[:space:]]*(\#.*)?$$ ]] && continue; \
@@ -78,7 +103,7 @@ LOAD_ENV = if [ -f .env ]; then \
 			printf -v "$$key" "%s" "$$val"; \
 			export "$$key"; \
 		else \
-			echo "[ERROR] Failed to parse .env in $$(pwd): invalid format" >&2; \
+			echo -e "$(T_ERR) $(RED)[ERROR] Failed to parse .env in $$(pwd): invalid format$(NC)" >&2; \
 			exit 1; \
 		fi; \
 	done < .env; \
@@ -149,27 +174,29 @@ _install-vcstool:
 	fi
 
 init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
-	@echo -e "$(BLUE)==> Initializing dependencies and importing components...$(NC)"
-	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
+	@echo -e "$(T_START) $(BLUE)Initializing dependencies and importing components...$(NC)"
+	@mkdir -p $(COMPONENTS_DIR)
+	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
+	@echo -e "$(T_OK) $(GREEN)Initialization complete!$(NC)"
 
 sync: init $(REPOS_YAML_RESOLVED) ## コンポーネントのソースコードを最新化します
-	@echo -e "$(BLUE)==> Syncing all components...$(NC)"
-	mkdir -p $(COMPONENTS_DIR)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
-	PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
+	@echo -e "$(T_START) $(BLUE)Syncing all components...$(NC)"
+	@mkdir -p $(COMPONENTS_DIR)
+	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
+	@PATH="$(HOME)/.local/bin:$$PATH" vcs pull $(COMPONENTS_DIR)
+	@echo -e "$(T_OK) $(GREEN)Sync complete!$(NC)"
 
 status: ## すべてのコンポーネントのGitステータスを確認します
-	@echo -e "$(BLUE)==> Checking status of all components...$(NC)"
+	@echo -e "$(T_START) $(BLUE)Checking status of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs status $(COMPONENTS_DIR)
 
 diff: ## すべてのコンポーネントのGit差分を確認します
-	@echo -e "$(BLUE)==> Checking diff of all components...$(NC)"
+	@echo -e "$(T_START) $(BLUE)Checking diff of all components...$(NC)"
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs diff $(COMPONENTS_DIR)
 
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-	        echo -e "$(BLUE)==> Injecting common-mk into components...$(NC)"; \
+	        echo -e "$(T_START) $(BLUE)Injecting common-mk into components...$(NC)"; \
 	        for dir in "$(COMPONENTS_DIR)"/*; do \
 	                if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 	                        mkdir -p "$$dir/_mk"; \
@@ -179,59 +206,60 @@ _inject_common_mk:
 	                        ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md"; \
 	                fi; \
 	        done; \
+	        echo -e "$(T_OK) $(GREEN)Common-mk injection complete.$(NC)"; \
         fi
 
 _skip_secrets:
-	@echo -e "$(YELLOW)[SKIP] Bitwarden integration is disabled. Set WITH_BW=1 to enable.$(NC)"
+	@echo -e "  $(T_SKIP) $(YELLOW)Bitwarden integration is disabled. Set WITH_BW=1 to enable.$(NC)"
 
 _check_bw_tools: init
-	@command -v bw >/dev/null 2>&1 || { echo -e "$(RED)Bitwarden CLI (bw) not found.$(NC)" >&2; exit 1; }
-	@command -v jq >/dev/null 2>&1 || { echo -e "$(RED)jq not found.$(NC)" >&2; exit 1; }
+	@command -v bw >/dev/null 2>&1 || { echo -e "  $(T_ERR) $(RED)Bitwarden CLI (bw) not found.$(NC)" >&2; exit 1; }
+	@command -v jq >/dev/null 2>&1 || { echo -e "  $(T_ERR) $(RED)jq not found.$(NC)" >&2; exit 1; }
 
 _ensure_bw_auth: _check_bw_tools
-	@echo -e "$(BLUE)==> Verifying Bitwarden authentication...$(NC)"
-	@status_json=$$(bw status 2>/dev/null) || { echo -e "$(RED)[ERROR] Bitwarden CLI 'bw status' failed.$(NC)" >&2; exit 1; }; \
+	@echo -e "  $(T_START) $(BLUE)Verifying Bitwarden authentication...$(NC)"
+	@status_json=$$(bw status 2>/dev/null) || { echo -e "  $(T_ERR) $(RED)[ERROR] Bitwarden CLI 'bw status' failed.$(NC)" >&2; exit 1; }; \
 	status=$$(echo "$$status_json" | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "error" ]; then \
-		echo -e "$(RED)[ERROR] Failed to parse Bitwarden status. Check your installation.$(NC)" >&2; \
+		echo -e "  $(T_ERR) $(RED)[ERROR] Failed to parse Bitwarden status.$(NC)" >&2; \
 		exit 1; \
 	fi; \
 	if [ "$$status" = "unauthenticated" ]; then \
-		echo -e "$(YELLOW)==> Authenticating Bitwarden...$(NC)" >&2; \
-		bw login || { echo -e "$(RED)[ERROR] Bitwarden login failed$(NC)" >&2; exit 1; }; \
+		echo -e "  $(T_START) $(YELLOW)Authenticating Bitwarden...$(NC)" >&2; \
+		bw login || { echo -e "  $(T_ERR) $(RED)[ERROR] Bitwarden login failed$(NC)" >&2; exit 1; }; \
 	fi
 
 _unlock_bw: _ensure_bw_auth
 	@status=$$(bw status 2>/dev/null | jq -r '.status' 2>/dev/null || echo "error"); \
 	if [ "$$status" = "locked" ]; then \
-		echo -e "$(BLUE)==> Unlocking Bitwarden vault...$(NC)" >&2; \
-		session=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] Bitwarden unlock failed or timed out.$(NC)" >&2; exit 1; }; \
+		echo -e "  $(T_START) $(BLUE)Unlocking Bitwarden vault...$(NC)" >&2; \
+		session=$$(bw unlock --raw) || { echo -e "  $(T_ERR) $(RED)[ERROR] Bitwarden unlock failed.$(NC)" >&2; exit 1; }; \
 		if [ -n "$$session" ]; then \
 			mkdir -p "$$(dirname "$(BW_SESSION_FILE)")"; \
-			echo "$$session" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to save session$(NC)" >&2; exit 1; }; \
-			echo -e "$(GREEN)[OK] Vault unlocked. Session saved to $(BW_SESSION_FILE)$(NC)"; \
+			echo "$$session" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "  $(T_ERR) $(RED)[ERROR] Failed to save session$(NC)" >&2; exit 1; }; \
+			echo -e "  $(T_OK) $(GREEN)Vault unlocked. Session saved.$(NC)"; \
 		else \
-			echo -e "$(RED)[ERROR] Failed to obtain Bitwarden session key.$(NC)" >&2; exit 1; \
+			echo -e "  $(T_ERR) $(RED)[ERROR] Failed to obtain Bitwarden session key.$(NC)" >&2; exit 1; \
 		fi; \
 	elif [ "$$status" = "unlocked" ]; then \
-		echo -e "$(GREEN)[OK] Bitwarden vault is already unlocked.$(NC)"; \
+		echo -e "  $(T_OK) $(GREEN)Bitwarden vault is already unlocked.$(NC)"; \
 		if [ -z "$$BW_SESSION" ]; then \
-			echo -e "$(YELLOW)[WARN] BW_SESSION not set, obtaining session...$(NC)"; \
-			BW_SESSION=$$(bw unlock --raw) || { echo -e "$(RED)[ERROR] failed to obtain BW_SESSION$(NC)" >&2; exit 1; }; \
+			echo -e "  $(T_ITEM) $(YELLOW)BW_SESSION not set, obtaining session...$(NC)"; \
+			BW_SESSION=$$(bw unlock --raw) || { echo -e "  $(T_ERR) $(RED)failed to obtain BW_SESSION$(NC)" >&2; exit 1; }; \
 		fi; \
 		mkdir -p "$$(dirname "$(BW_SESSION_FILE)")"; \
-		echo "$$BW_SESSION" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "$(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
+		echo "$$BW_SESSION" > "$(BW_SESSION_FILE)" && chmod 600 "$(BW_SESSION_FILE)" || { echo -e "  $(T_ERR) $(RED)[ERROR] Failed to update session$(NC)" >&2; exit 1; }; \
 	else \
-		echo -e "$(RED)[ERROR] Unexpected Bitwarden status: $$status$(NC)" >&2; \
+		echo -e "  $(T_ERR) $(RED)[ERROR] Unexpected Bitwarden status: $$status$(NC)" >&2; \
 		exit 1; \
 	fi
 
 secrets: init $(SECRETS_DEPS) ## Bitwardenからシークレット情報を取得します
 
 setup: sync secrets _inject_common_mk ## すべてのコンポーネントのセットアップ（設定適用）を実行します
-	@echo -e "$(BLUE)==> Delegating to component-specific setup...$(NC)"
+	@echo -e "$(T_START) $(BLUE)Delegating to component-specific setup...$(NC)"
 	$(call dispatch,setup)
-	@echo -e "$(GREEN)==> Setup Complete!$(NC)"
+	@echo -e "$(T_OK) $(GREEN)$(BOLD)Setup Process Complete! ✨$(NC)"
 
 # Internal target for testing the dispatch macro
 test-dispatch:
