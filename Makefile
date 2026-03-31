@@ -84,16 +84,20 @@ LOAD_ENV = if [ -f .env ]; then \
 	done < .env; \
 fi
 
-.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _check_bw_tools _ensure_bw_auth _unlock_bw _skip_secrets
+.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool
 
 all: ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
 	$(call dispatch,all)
 
-init: $(REPOS_YAML_RESOLVED) ## 依存関係のインストールとリポジトリのクローンを行います
-	@echo -e "$(BLUE)==> Initializing dependencies...$(NC)"
+_install-deps:
 	@if command -v apt-get >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
 		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get update && $$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata python3-pip jq curl git openssh-client ca-certificates python3-setuptools; \
+	fi
+
+_set-timezone:
+	@if command -v apt-get >/dev/null 2>&1; then \
+		SUDO=$$(command -v sudo || true); \
 		if [ ! -e "/usr/share/zoneinfo/$(TZ_OVERRIDE)" ]; then \
 			echo -e "$(RED)[ERROR] Timezone '$(TZ_OVERRIDE)' not found in /usr/share/zoneinfo/$(NC)" >&2; \
 			exit 1; \
@@ -103,10 +107,15 @@ init: $(REPOS_YAML_RESOLVED) ## 依存関係のインストールとリポジト
 			exit 1; \
 		}; \
 	fi
+
+_install-vcstool:
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
 		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(RED)ERROR: failed to install vcstool$(NC)" >&2; exit 1; }; \
 	fi
+
+init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
+	@echo -e "$(BLUE)==> Initializing dependencies and importing components...$(NC)"
 	mkdir -p $(COMPONENTS_DIR)
 	PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
 
