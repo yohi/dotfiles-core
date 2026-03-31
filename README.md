@@ -118,5 +118,3 @@ Bitwarden CLI (`bw`) を使用します。
 
 ---
 Created by Gemini CLI based on @SPEC.md.
-ed on @SPEC.md.
- CLI based on @SPEC.md.
