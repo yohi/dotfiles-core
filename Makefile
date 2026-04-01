@@ -88,7 +88,7 @@ LOAD_ENV = if [ -f .env ]; then \
 	done < .env; \
 fi
 
-.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker
+.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker test.build test.run
 
 ifeq ($(WITH_BW),1)
 SECRETS_DEPS := _unlock_bw
@@ -149,7 +149,10 @@ _set-timezone:
 _install-vcstool:
 	@if ! command -v vcs >/dev/null 2>&1; then \
 		SUDO=$$(command -v sudo || true); \
-		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y vcstool 2>/dev/null || pip3 install --user vcstool --break-system-packages || { echo -e "$(H_RED)ERROR: failed to install vcstool$(H_NC)" >&2; exit 1; }; \
+		$$SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y vcstool 2>/dev/null || \
+		pip3 install --user vcstool --break-system-packages 2>/dev/null || \
+		pip3 install --user vcstool || \
+		{ echo -e "$(H_RED)ERROR: failed to install vcstool$(H_NC)" >&2; exit 1; }; \
 	fi
 
 init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
@@ -175,18 +178,19 @@ diff: ## すべてのコンポーネントのGit差分を確認します
 
 _inject_common_mk:
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
-	        echo -e "$(T_START) $(H_BLUE)Injecting common-mk into components...$(H_NC)"; \
-	        for dir in "$(COMPONENTS_DIR)"/*; do \
-	                if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
-	                        mkdir -p "$$dir/_mk"; \
-	                        ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk"; \
-	                        ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk"; \
-	                        ln -sf ../../../common-mk/core.mk "$$dir/_mk/core.mk"; \
-	                        ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md"; \
-	                fi; \
-	        done; \
-	        echo -e "$(T_OK) $(H_GREEN)Common-mk injection complete.$(H_NC)"; \
-        fi
+		set -e; \
+		echo -e "$(T_START) $(H_BLUE)Injecting common-mk into components...$(H_NC)"; \
+		for dir in "$(COMPONENTS_DIR)"/*; do \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+				mkdir -p "$$dir/_mk"; \
+				ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk"; \
+				ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk"; \
+				ln -sf ../../../common-mk/core.mk "$$dir/_mk/core.mk"; \
+				ln -sf ../../common-mk/DOTFILES_COMMON_RULES.md "$$dir/DOTFILES_COMMON_RULES.md"; \
+			fi; \
+		done; \
+		echo -e "$(T_OK) $(H_GREEN)Common-mk injection complete.$(H_NC)"; \
+	fi
 
 _skip_secrets:
 	@echo -e "  $(T_SKIP) $(H_YELLOW)Bitwarden integration is disabled. Set WITH_BW=1 to enable.$(H_NC)"
@@ -247,13 +251,17 @@ test-dispatch:
 _check_docker:
 	@command -v docker >/dev/null 2>&1 || { echo -e "$(H_RED)[ERROR] Docker is not available on PATH.$(H_NC)" >&2; exit 1; }
 
-test: _check_docker
+test.build: _check_docker ## テスト用Dockerイメージをビルドします
 	@echo -e "$(H_BLUE)==> Building test container...$(H_NC)"
 	docker build -t dotfiles-core-test -f tests/Dockerfile.test .
+
+test.run: ## テスト用Dockerコンテナを実行します
 	@echo -e "$(H_BLUE)==> Running tests...$(H_NC)"
 	docker run --rm \
 		-v "$$(pwd):/home/testuser/dotfiles-core" \
 		dotfiles-core-test ./tests/integration_test.sh
+
+test: test.build test.run ## すべてのテストを実行します
 
 clean: ## 一時ファイルやセッションの削除を行います
 	@echo -e "$(H_YELLOW)==> Cleaning up session and components...$(H_NC)"
