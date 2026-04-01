@@ -1,9 +1,10 @@
 # Help System Colors
-H_MAGENTA := \033[35m
-H_CYAN    := \033[36m
+H_RED     := \033[31m
+H_GREEN   := \033[32m
 H_YELLOW  := \033[33m
 H_BLUE    := \033[34m
-H_GREEN   := \033[32m
+H_MAGENTA := \033[35m
+H_CYAN    := \033[36m
 H_BOLD    := \033[1m
 H_NC      := \033[0m
 
@@ -21,6 +22,7 @@ help: ## 利用可能なターゲットの一覧を表示します
 	@echo -e "  $(H_CYAN)setup$(H_NC)   : $(H_BOLD)[設定]$(H_NC) シンボリックリンクの配備など設定の適用を実行"
 	@echo -e "  $(H_CYAN)all$(H_NC)     : $(H_BOLD)[一括]$(H_NC) sync -> secrets -> setup を全コンポーネントで実行"
 	@echo -e "  $(H_CYAN)status$(H_NC)  : $(H_BOLD)[確認]$(H_NC) 全コンポーネントのGitステータスを一括表示"
+	@echo -e "  $(H_CYAN)clean$(H_NC)   : $(H_BOLD)[掃除]$(H_NC) 一時ファイルやセッションの削除"
 	@echo -e ""
 	@echo -e "$(H_BOLD)🚀 Recommended Sequences (推奨される実行順序):$(H_NC)"
 	@echo -e "  1. $(H_BOLD)新規環境の構築:$(H_NC)"
