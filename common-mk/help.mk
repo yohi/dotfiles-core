@@ -25,20 +25,50 @@ help: ## 利用可能なターゲットの一覧を表示します
 	@echo -e "  $(H_CYAN)clean$(H_NC)   : $(H_BOLD)[掃除]$(H_NC) 一時ファイルやセッションの削除"
 	@echo -e ""
 	@echo -e "$(H_BOLD)🚀 Recommended Sequences (推奨される実行順序):$(H_NC)"
-	@echo -e "  1. $(H_BOLD)新規環境の構築:$(H_NC)"
-	@echo -e "     $(H_GREEN)make init$(H_NC) ➔ $(H_GREEN)make all$(H_NC)"
-	@echo -e "  2. $(H_BOLD)日常的な更新 (コードと設定を最新にする):$(H_NC)"
-	@echo -e "     $(H_GREEN)make all$(H_NC)"
-	@echo -e "  3. $(H_BOLD)設定の微調整後 (シンボリックリンクのみ再作成):$(H_NC)"
-	@echo -e "     $(H_GREEN)make setup$(H_NC)"
-	@echo -e "  4. $(H_BOLD)パスワードやAPIキーが変わった場合:$(H_NC)"
-	@echo -e "     $(H_GREEN)make secrets$(H_NC) ➔ $(H_GREEN)make setup$(H_NC)"
+	@echo -e "  1. 新規環境の構築: $(H_GREEN)make init$(H_NC) ➔ $(H_GREEN)make all$(H_NC)"
+	@echo -e "  2. 日常的な更新:   $(H_GREEN)make all$(H_NC)"
+	@echo -e "  3. 設定微調整後:   $(H_GREEN)make setup$(H_NC)"
+	@echo -e "  4. 認証情報更新:   $(H_GREEN)make secrets$(H_NC) ➔ $(H_GREEN)make setup$(H_NC)"
 	@echo -e ""
-	@echo -e "$(H_BOLD)🎯 All Available Targets:$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; { \
-		printf "  $(H_CYAN)%-18s$(H_NC) %s\n", $$1, $$2 \
-	}'
+	@echo -e "$(H_BOLD)🎯 All Available Targets (Categorized):$(H_NC)"
+	@$(MAKE) -s print-categorized-help
 	@echo -e ""
 	@echo -e "$(H_BOLD)Documentation:$(H_NC)"
 	@echo -e "  See $(H_BLUE)SPEC.md$(H_NC) or $(H_BLUE)docs/ARCHITECTURE.md$(H_NC) for details."
 	@echo -e ""
+
+.PHONY: print-categorized-help
+print-categorized-help:
+	@# Main / Common
+	@echo -e "$(H_YELLOW)$(H_BOLD)[Main / Common]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' Makefile _mk/main.mk _mk/variables.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Claude
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Claude Code]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/claude.mk _mk/superclaude.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Gemini
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Gemini CLI]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/gemini.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# OpenCode
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[OpenCode]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/opencode.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Codex
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Codex CLI]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/codex.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Antigravity
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Antigravity]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/antigravity.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# IDE Tools
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[IDE Tools]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/ide-cursor.mk _mk/ide-vscode.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Docker MCP
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Docker MCP Gateway]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/mcp.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# SkillPort
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Skill Management (SkillPort)]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/skillport.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Agent Sync / Rules
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Agent Synchronization & Rules]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/sync-agents.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@# Superpowers
+	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Superpowers Workflow]$(H_NC)"
+	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/superpowers.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
