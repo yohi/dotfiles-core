@@ -31,44 +31,77 @@ help: ## 利用可能なターゲットの一覧を表示します
 	@echo -e "  4. 認証情報更新:   $(H_GREEN)make secrets$(H_NC) ➔ $(H_GREEN)make setup$(H_NC)"
 	@echo -e ""
 	@echo -e "$(H_BOLD)🎯 All Available Targets (Categorized):$(H_NC)"
-	@$(MAKE) -s print-categorized-help
+	@$(MAKE) -s _print-categorized-help
 	@echo -e ""
 	@echo -e "$(H_BOLD)Documentation:$(H_NC)"
 	@echo -e "  See $(H_BLUE)SPEC.md$(H_NC) or $(H_BLUE)docs/ARCHITECTURE.md$(H_NC) for details."
 	@echo -e ""
 
-.PHONY: print-categorized-help
-print-categorized-help:
+.PHONY: _print-categorized-help
+_print-categorized-help:
 	@# Main / Common
-	@echo -e "$(H_YELLOW)$(H_BOLD)[Main / Common]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' Makefile _mk/main.mk _mk/variables.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' Makefile _mk/main.mk _mk/variables.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "$(H_YELLOW)$(H_BOLD)[Main / Common]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Claude
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Claude Code]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/claude.mk _mk/superclaude.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/claude.mk _mk/superclaude.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Claude Code]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Gemini
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Gemini CLI]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/gemini.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/gemini.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Gemini CLI]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# OpenCode
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[OpenCode]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/opencode.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/opencode.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[OpenCode]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Codex
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Codex CLI]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/codex.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/codex.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Codex CLI]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Antigravity
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Antigravity]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/antigravity.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/antigravity.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Antigravity]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# IDE Tools
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[IDE Tools]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/ide-cursor.mk _mk/ide-vscode.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/ide-cursor.mk _mk/ide-vscode.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[IDE Tools]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Docker MCP
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Docker MCP Gateway]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/mcp.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/mcp.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Docker MCP Gateway]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# SkillPort
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Skill Management (SkillPort)]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/skillport.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/skillport.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Skill Management (SkillPort)]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Agent Sync / Rules
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Agent Synchronization & Rules]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/sync-agents.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/sync-agents.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Agent Synchronization & Rules]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
 	@# Superpowers
-	@echo -e "\n$(H_YELLOW)$(H_BOLD)[Superpowers Workflow]$(H_NC)"
-	@grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/superpowers.mk 2>/dev/null | sort | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' _mk/superpowers.mk 2>/dev/null | sort); \
+	if [ -n "$$targets" ]; then \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[Superpowers Workflow]$(H_NC)"; \
+		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }'; \
+	fi
