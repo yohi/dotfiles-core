@@ -2,6 +2,7 @@
 SHELL := /bin/bash
 
 # Standard help and core rules
+_MK_DIR := common-mk
 include common-mk/help.mk
 
 # Default target
