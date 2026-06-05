@@ -89,7 +89,7 @@ LOAD_ENV = if [ -f .env ]; then \
 	done < .env; \
 fi
 
-.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker test.build test.run
+.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _create-ssh-key _register-github-key _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker test.build test.run
 
 ifeq ($(WITH_BW),1)
 SECRETS_DEPS := _unlock_bw
@@ -156,7 +156,41 @@ _install-vcstool:
 		{ echo -e "$(H_RED)ERROR: failed to install vcstool$(H_NC)" >&2; exit 1; }; \
 	fi
 
-init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
+_create-ssh-key:
+	@if [ ! -f "$(HOME)/.ssh/id_ed25519" ]; then \
+		echo -e "$(T_START) $(H_BLUE)Generating Ed25519 SSH key...$(H_NC)"; \
+		mkdir -p "$(HOME)/.ssh"; \
+		ssh-keygen -t ed25519 -f "$(HOME)/.ssh/id_ed25519" -N "" -q || { \
+			echo -e "$(T_ERR) $(H_RED)Failed to generate SSH key$(H_NC)" >&2; exit 1; \
+		}; \
+		echo -e "$(T_OK) $(H_GREEN)SSH key generated: ~/.ssh/id_ed25519$(H_NC)"; \
+	fi
+
+_register-github-key: _create-ssh-key
+	@echo -e "$(T_START) $(H_BLUE)Checking GitHub SSH connectivity...$(H_NC)"
+	@ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
+	ret=$$?; \
+	if [ $$ret -eq 1 ]; then \
+		echo -e "$(T_OK) $(H_GREEN)GitHub SSH connection successful.$(H_NC)"; \
+	else \
+		echo -e "$(T_ITEM) $(H_YELLOW)SSH connection failed. Attempting automatic registration...$(H_NC)"; \
+		if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then \
+			echo -e "$(T_START) $(H_BLUE)Registering SSH key to GitHub via gh CLI...$(H_NC)"; \
+			gh ssh-key add "$(HOME)/.ssh/id_ed25519.pub" --title "Orchestrator Key ($$(hostname))" && { \
+				echo -e "$(T_OK) $(H_GREEN)Successfully registered key to GitHub.$(H_NC)"; \
+				exit 0; \
+			} || echo -e "$(T_ERR) $(H_RED)gh CLI key registration failed.$(H_NC)"; \
+		fi; \
+		echo -e "\n$(H_YELLOW)==========================================================="; \
+		echo -e "GitHub への SSH 接続が認証されていません。"; \
+		echo -e "以下の公開鍵を GitHub に登録してください：\n"; \
+		cat "$(HOME)/.ssh/id_ed25519.pub"; \
+		echo -e "\n登録先URL: https://github.com/settings/keys"; \
+		echo -e "===========================================================$(H_NC)\n"; \
+		read -p "GitHubへの鍵登録が完了したら、エンターキーを押して続行してください..." dummy; \
+	fi
+
+init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool _register-github-key ## 依存関係のインストールとリポジトリのクローンを行います
 	@echo -e "$(T_START) $(H_BLUE)Initializing dependencies and importing components...$(H_NC)"
 	@mkdir -p $(COMPONENTS_DIR)
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)

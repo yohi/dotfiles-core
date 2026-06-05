@@ -1,0 +1,4 @@
+---
+username: "y_ohi"
+ssh_public_key_path: "/home/y_ohi/.ssh/id_ed25519.pub"
+new_ssh_port: 5310
