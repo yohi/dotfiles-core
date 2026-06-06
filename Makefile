@@ -160,9 +160,11 @@ _create-ssh-key:
 	@if [ ! -f "$(HOME)/.ssh/id_ed25519" ]; then \
 		echo -e "$(T_START) $(H_BLUE)Generating Ed25519 SSH key...$(H_NC)"; \
 		mkdir -p "$(HOME)/.ssh"; \
+		chmod 700 "$(HOME)/.ssh"; \
 		ssh-keygen -t ed25519 -f "$(HOME)/.ssh/id_ed25519" -N "" -q || { \
 			echo -e "$(T_ERR) $(H_RED)Failed to generate SSH key$(H_NC)" >&2; exit 1; \
 		}; \
+		chmod 600 "$(HOME)/.ssh/id_ed25519"; \
 		echo -e "$(T_OK) $(H_GREEN)SSH key generated: ~/.ssh/id_ed25519$(H_NC)"; \
 	fi
 
@@ -187,10 +189,14 @@ _register-github-key: _create-ssh-key
 		cat "$(HOME)/.ssh/id_ed25519.pub"; \
 		echo -e "\n登録先URL: https://github.com/settings/keys"; \
 		echo -e "===========================================================$(H_NC)\n"; \
-		read -p "GitHubへの鍵登録が完了したら、エンターキーを押して続行してください..." dummy; \
+		if [ -t 0 ]; then \
+			read -p "GitHubへの鍵登録が完了したら、エンターキーを押して続行してください..." dummy; \
+		else \
+			echo -e "$(H_YELLOW)警告: 非対話環境を検出したため、キー登録の入力をスキップして続行します。$(H_NC)"; \
+		fi; \
 	fi
 
-init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool _register-github-key ## 依存関係のインストールとリポジトリのクローンを行います
+init: _register-github-key $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
 	@echo -e "$(T_START) $(H_BLUE)Initializing dependencies and importing components...$(H_NC)"
 	@mkdir -p $(COMPONENTS_DIR)
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)

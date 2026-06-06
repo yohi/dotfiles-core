@@ -24,7 +24,7 @@ DEFAULT_INIT_USER="root"
 DEFAULT_INIT_KEY_PATH=""
 
 DEFAULT_USERNAME="y_ohi"
-DEFAULT_SSH_KEY_PATH="~/.ssh/id_rsa.pub"
+DEFAULT_SSH_KEY_PATH="~/.ssh/id_ed25519.pub"
 DEFAULT_NEW_SSH_PORT="5310"
 
 # --- 既存ファイルからのデフォルト値の抽出 ---
@@ -178,14 +178,15 @@ fi
 echo "==> 設定ファイルを更新しています..."
 cat <<EOF > "${SCRIPT_DIR}/hosts.ini"
 [servers]
-target_host ansible_host=${TARGET_IP} ansible_port=${INIT_PORT} ansible_user=${INIT_USER} ${INIT_KEY_PARAM}
+target_host ansible_host=${TARGET_IP} ansible_port=${INIT_PORT} ansible_user=${INIT_USER}${INIT_KEY_PARAM:+ ${INIT_KEY_PARAM}}
 EOF
 
 cat <<EOF > "${SCRIPT_DIR}/vars.yml"
 ---
 username: "${USERNAME}"
-ssh_public_key_path: "${SSH_KEY_PATH_EXPANDED}"
+ssh_public_key_path: "${SSH_KEY_PATH}"
 new_ssh_port: ${NEW_SSH_PORT}
+github_token: ""
 EOF
 
 echo "==> Ansible プレイブックを実行しています..."

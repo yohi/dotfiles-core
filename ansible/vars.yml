@@ -1,5 +1,0 @@
----
-username: "y_ohi"
-ssh_public_key_path: "~/.ssh/id_ed25519.pub"
-new_ssh_port: 5310
-github_token: ""
