@@ -95,7 +95,7 @@ ifeq ($(WITH_BW),1)
 SECRETS_DEPS := _unlock_bw
 endif
 
-all: ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
+all: _inject_common_mk ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
 	$(call dispatch,all)
 
 SSH_CONNECT_TIMEOUT ?= 3
