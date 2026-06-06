@@ -35,7 +35,7 @@ define dispatch
 		echo -e "$(H_MAGENTA)$(H_BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┃ $$(printf '%-58s' "Dispatching '$(1)' to all components...") ┃$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛$(H_NC)"; \
-		for dir in "$(COMPONENTS_DIR)"/*; do \
+		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
