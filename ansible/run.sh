@@ -132,7 +132,7 @@ NEW_SSH_PORT="${NEW_SSH_PORT:-${DEFAULT_NEW_SSH_PORT}}"
 
 # --- 各種パスの検証 ---
 # 登録する公開鍵のパス展開と存在チェック
-eval SSH_KEY_PATH_EXPANDED="${SSH_KEY_PATH}"
+SSH_KEY_PATH_EXPANDED="${SSH_KEY_PATH/#\~/$HOME}"
 if [ ! -f "${SSH_KEY_PATH_EXPANDED}" ]; then
     echo "警告: 指定された公開鍵ファイルが見つかりません: ${SSH_KEY_PATH}"
     read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM
@@ -145,7 +145,7 @@ fi
 # 接続用秘密鍵のパス展開と存在チェック
 INIT_KEY_PARAM=""
 if [ -n "${INIT_KEY_PATH}" ]; then
-    eval INIT_KEY_PATH_EXPANDED="${INIT_KEY_PATH}"
+    INIT_KEY_PATH_EXPANDED="${INIT_KEY_PATH/#\~/$HOME}"
     if [ ! -f "${INIT_KEY_PATH_EXPANDED}" ]; then
         echo "警告: 指定された接続用秘密鍵が見つかりません: ${INIT_KEY_PATH}"
         read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM_2

@@ -21,7 +21,7 @@
 2. **変数の設定 (`vars.yml`)**  
    環境に合わせて変数を編集します。
    - `username`: 作成する一般ユーザー名（デフォルト: `y_ohi`）。
-   - `ssh_public_key_path`: 実行元PCのSSH公開鍵のパス（デフォルト: `"~/.ssh/id_rsa.pub"`）。この公開鍵がターゲット上の指定ユーザーの `authorized_keys` に登録されます。
+   - `ssh_public_key_path`: 実行元PCのSSH公開鍵のパス（デフォルト: `"~/.ssh/id_ed25519.pub"`）。この公開鍵がターゲット上の指定ユーザーの `authorized_keys` に登録されます。
    - `github_token`: GitHub の Personal Access Token。トークンを指定すると、ターゲット上で自動生成されたSSH公開鍵を自動的に GitHub アカウントに登録します。空のままにした場合は、実行時にコンソールへ公開鍵の内容が表示されるので、手動で GitHub に登録してください。
    - `new_ssh_port`: SSH接続用に新しく設定するポート番号（デフォルト: `5310`）。
 

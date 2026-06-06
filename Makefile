@@ -170,7 +170,7 @@ _register-github-key: _create-ssh-key
 	@echo -e "$(T_START) $(H_BLUE)Checking GitHub SSH connectivity...$(H_NC)"
 	@ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 	ret=$$?; \
-	if [ $$ret -eq 1 ]; then \
+	if [ $$ret -eq 0 ] || [ $$ret -eq 1 ]; then \
 		echo -e "$(T_OK) $(H_GREEN)GitHub SSH connection successful.$(H_NC)"; \
 	else \
 		echo -e "$(T_ITEM) $(H_YELLOW)SSH connection failed. Attempting automatic registration...$(H_NC)"; \
