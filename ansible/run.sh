@@ -17,6 +17,15 @@ for arg in "$@"; do
     ANSIBLE_ARGS+=("$arg")
 done
 
+validate_port() {
+    local port="$1"
+    if [[ "$port" =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # --- デフォルト値の初期設定 ---
 DEFAULT_TARGET_IP=""
 DEFAULT_INIT_PORT="22"
@@ -103,8 +112,15 @@ else
 fi
 
 # 2. 初期接続用のSSHポート番号
-read -p "初期接続用の SSH ポート番号 [${DEFAULT_INIT_PORT}]: " INIT_PORT
-INIT_PORT="${INIT_PORT:-${DEFAULT_INIT_PORT}}"
+while true; do
+    read -p "初期接続用の SSH ポート番号 [${DEFAULT_INIT_PORT}]: " INIT_PORT
+    INIT_PORT="${INIT_PORT:-${DEFAULT_INIT_PORT}}"
+    if validate_port "${INIT_PORT}"; then
+        break
+    else
+        echo "エラー: ポート番号は1から65535の範囲の整数で入力してください。" >&2
+    fi
+done
 
 # 3. 初期接続用のSSHユーザー
 read -p "初期接続用の SSH ユーザー [${DEFAULT_INIT_USER}]: " INIT_USER
@@ -127,12 +143,20 @@ read -p "実行元PCのSSH公開鍵のパス [${DEFAULT_SSH_KEY_PATH}]: " SSH_KE
 SSH_KEY_PATH="${SSH_KEY_PATH:-${DEFAULT_SSH_KEY_PATH}}"
 
 # 7. 新しいSSHポート番号
-read -p "変更後の SSH ポート番号 [${DEFAULT_NEW_SSH_PORT}]: " NEW_SSH_PORT
-NEW_SSH_PORT="${NEW_SSH_PORT:-${DEFAULT_NEW_SSH_PORT}}"
+while true; do
+    read -p "変更後の SSH ポート番号 [${DEFAULT_NEW_SSH_PORT}]: " NEW_SSH_PORT
+    NEW_SSH_PORT="${NEW_SSH_PORT:-${DEFAULT_NEW_SSH_PORT}}"
+    if validate_port "${NEW_SSH_PORT}"; then
+        break
+    else
+        echo "エラー: ポート番号は1から65535の範囲の整数で入力してください。" >&2
+    fi
+done
 
 # --- 各種パスの検証 ---
 # 登録する公開鍵のパス展開と存在チェック
 SSH_KEY_PATH_EXPANDED="${SSH_KEY_PATH/#\~/$HOME}"
+SSH_KEY_PATH_EXPANDED="$(realpath -m "${SSH_KEY_PATH_EXPANDED}")"
 if [ ! -f "${SSH_KEY_PATH_EXPANDED}" ]; then
     echo "警告: 指定された公開鍵ファイルが見つかりません: ${SSH_KEY_PATH}"
     read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM
@@ -174,6 +198,16 @@ if [[ ! "${CONFIRM}" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
+# ポート番号の最終検証
+if ! validate_port "${INIT_PORT}"; then
+    echo "エラー: 初期接続用SSHポート番号が不正です (${INIT_PORT})。" >&2
+    exit 1
+fi
+if ! validate_port "${NEW_SSH_PORT}"; then
+    echo "エラー: 変更後SSHポート番号が不正です (${NEW_SSH_PORT})。" >&2
+    exit 1
+fi
+
 # 対話入力された設定内容で既存の設定ファイル（hosts.ini と vars.yml）を更新する
 echo "==> 設定ファイルを更新しています..."
 cat <<EOF > "${SCRIPT_DIR}/hosts.ini"
@@ -184,7 +218,7 @@ EOF
 cat <<EOF > "${SCRIPT_DIR}/vars.yml"
 ---
 username: "${USERNAME}"
-ssh_public_key_path: "${SSH_KEY_PATH}"
+ssh_public_key_path: "${SSH_KEY_PATH_EXPANDED}"
 new_ssh_port: ${NEW_SSH_PORT}
 github_token: ""
 EOF
