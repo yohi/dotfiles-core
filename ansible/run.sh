@@ -26,6 +26,27 @@ validate_port() {
     fi
 }
 
+normalize_path() {
+    local path="$1"
+    # Expand ~
+    path="${path/#\~/$HOME}"
+    
+    # Make absolute if relative
+    if [[ "$path" != /* ]]; then
+        path="$PWD/$path"
+    fi
+    
+    # Normalize slashes and dots (POSIX compatible string manipulation)
+    local result
+    result="$(echo "$path" | sed -E -e 's|//*|/|g' -e 's|/\./|/|g')"
+    while echo "$result" | grep -q '/\.\./'; do
+        result="$(echo "$result" | sed 's|/[^/][^/]*/\.\./|/|')"
+    done
+    # Strip trailing /. if any, and handle trailing /..
+    result="$(echo "$result" | sed -E -e 's|/\.$||' -e 's|/[^/][^/]*/\.\.$|/|')"
+    echo "$result"
+}
+
 # --- デフォルト値の初期設定 ---
 DEFAULT_TARGET_IP=""
 DEFAULT_INIT_PORT="22"
@@ -35,6 +56,7 @@ DEFAULT_INIT_KEY_PATH=""
 DEFAULT_USERNAME="y_ohi"
 DEFAULT_SSH_KEY_PATH="~/.ssh/id_ed25519.pub"
 DEFAULT_NEW_SSH_PORT="5310"
+DEFAULT_GITHUB_TOKEN=""
 
 # --- 既存ファイルからのデフォルト値の抽出 ---
 # hosts.ini から初期接続情報の抽出
@@ -75,6 +97,10 @@ if [ -f "${SCRIPT_DIR}/vars.yml" ]; then
     # new_ssh_port
     TEMP_VAR=$(grep "^new_ssh_port:" "${SCRIPT_DIR}/vars.yml" | sed -E 's/^new_ssh_port:[[:space:]]*([0-9]+).*/\1/' || true)
     [ -n "${TEMP_VAR}" ] && [[ ! "${TEMP_VAR}" == *"new_ssh_port:"* ]] && DEFAULT_NEW_SSH_PORT="${TEMP_VAR}"
+
+    # github_token
+    TEMP_VAR=$(grep "^github_token:" "${SCRIPT_DIR}/vars.yml" | sed -E 's/^github_token:[[:space:]]*["'\''#]?([^"'\''#[:space:]]*)["'\''#]?.*/\1/' || true)
+    [ -n "${TEMP_VAR}" ] && [[ ! "${TEMP_VAR}" == *"github_token:"* ]] && DEFAULT_GITHUB_TOKEN="${TEMP_VAR}"
 fi
 
 # すでに設定ファイルが存在する場合の確認処理
@@ -155,8 +181,7 @@ done
 
 # --- 各種パスの検証 ---
 # 登録する公開鍵のパス展開と存在チェック
-SSH_KEY_PATH_EXPANDED="${SSH_KEY_PATH/#\~/$HOME}"
-SSH_KEY_PATH_EXPANDED="$(realpath -m "${SSH_KEY_PATH_EXPANDED}")"
+SSH_KEY_PATH_EXPANDED="$(normalize_path "${SSH_KEY_PATH}")"
 if [ ! -f "${SSH_KEY_PATH_EXPANDED}" ]; then
     echo "警告: 指定された公開鍵ファイルが見つかりません: ${SSH_KEY_PATH}"
     read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM
@@ -169,7 +194,7 @@ fi
 # 接続用秘密鍵のパス展開と存在チェック
 INIT_KEY_PARAM=""
 if [ -n "${INIT_KEY_PATH}" ]; then
-    INIT_KEY_PATH_EXPANDED="${INIT_KEY_PATH/#\~/$HOME}"
+    INIT_KEY_PATH_EXPANDED="$(normalize_path "${INIT_KEY_PATH}")"
     if [ ! -f "${INIT_KEY_PATH_EXPANDED}" ]; then
         echo "警告: 指定された接続用秘密鍵が見つかりません: ${INIT_KEY_PATH}"
         read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM_2
@@ -220,7 +245,7 @@ cat <<EOF > "${SCRIPT_DIR}/vars.yml"
 username: "${USERNAME}"
 ssh_public_key_path: "${SSH_KEY_PATH_EXPANDED}"
 new_ssh_port: ${NEW_SSH_PORT}
-github_token: ""
+github_token: "${DEFAULT_GITHUB_TOKEN}"
 EOF
 
 echo "==> Ansible プレイブックを実行しています..."
