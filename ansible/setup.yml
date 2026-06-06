@@ -110,6 +110,25 @@
         proto: tcp
       when: ufw_check.rc == 0
 
+    - name: Check if ssh.socket is active
+      ansible.builtin.systemd:
+        name: ssh.socket
+      register: ssh_socket_status
+      failed_when: false
+
+    - name: Disable ssh.socket and enable ssh.service if socket is active
+      ansible.builtin.systemd:
+        name: "{{ item.name }}"
+        enabled: "{{ item.enabled }}"
+        state: "{{ item.state }}"
+      loop:
+        - { name: "ssh.socket", enabled: false, state: "stopped" }
+        - { name: "ssh", enabled: true, state: "started" }
+      when:
+        - ssh_socket_status.status is defined
+        - ssh_socket_status.status.ActiveState is defined
+        - ssh_socket_status.status.ActiveState == 'active'
+
     - name: Configure SSH Daemon port
       ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
@@ -150,5 +169,9 @@
   handlers:
     - name: Restart SSH
       ansible.builtin.service:
-        name: ssh
+        name: "{{ item }}"
         state: restarted
+      loop:
+        - ssh
+        - sshd
+      failed_when: false
