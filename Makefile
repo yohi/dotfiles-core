@@ -166,9 +166,20 @@ _create-ssh-key:
 		}; \
 		chmod 600 "$(HOME)/.ssh/id_ed25519"; \
 		echo -e "$(T_OK) $(H_GREEN)SSH key generated: ~/.ssh/id_ed25519$(H_NC)"; \
+	elif [ ! -f "$(HOME)/.ssh/id_ed25519.pub" ]; then \
+		echo -e "$(T_START) $(H_BLUE)Generating public key from existing private key...$(H_NC)"; \
+		ssh-keygen -y -f "$(HOME)/.ssh/id_ed25519" > "$(HOME)/.ssh/id_ed25519.pub" || { \
+			echo -e "$(T_ERR) $(H_RED)Failed to generate public key from private key$(H_NC)" >&2; exit 1; \
+		}; \
+		chmod 644 "$(HOME)/.ssh/id_ed25519.pub"; \
+		echo -e "$(T_OK) $(H_GREEN)Public key generated: ~/.ssh/id_ed25519.pub$(H_NC)"; \
 	fi
 
 _register-github-key: _create-ssh-key
+	@if [ "$(USE_HTTPS)" = "1" ]; then \
+		echo -e "$(T_SKIP) $(H_YELLOW)HTTPS mode requested. Skipping SSH key registration.$(H_NC)"; \
+		exit 0; \
+	fi
 	@echo -e "$(T_START) $(H_BLUE)Checking GitHub SSH connectivity...$(H_NC)"
 	@ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
 	ret=$$?; \
@@ -196,7 +207,7 @@ _register-github-key: _create-ssh-key
 		fi; \
 	fi
 
-init: _register-github-key $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
+init: _install-deps _register-github-key $(REPOS_YAML_RESOLVED) _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
 	@echo -e "$(T_START) $(H_BLUE)Initializing dependencies and importing components...$(H_NC)"
 	@mkdir -p $(COMPONENTS_DIR)
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)
