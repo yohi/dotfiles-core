@@ -35,7 +35,7 @@ define dispatch
 		echo -e "$(H_MAGENTA)$(H_BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┃ $$(printf '%-58s' "Dispatching '$(1)' to all components...") ┃$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛$(H_NC)"; \
-		for dir in "$(COMPONENTS_DIR)"/*; do \
+		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
@@ -89,13 +89,13 @@ LOAD_ENV = if [ -f .env ]; then \
 	done < .env; \
 fi
 
-.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker test.build test.run
+.PHONY: init sync status diff secrets setup all clean test .clean-safety _inject_common_mk _install-deps _set-timezone _install-vcstool _create-ssh-key _register-github-key _unlock_bw _ensure_bw_auth _check_bw_tools _skip_secrets test-dispatch _check_docker test.build test.run
 
 ifeq ($(WITH_BW),1)
 SECRETS_DEPS := _unlock_bw
 endif
 
-all: ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
+all: _inject_common_mk ## すべてのコンポーネントの全行程（インストール・セットアップ）を実行します
 	$(call dispatch,all)
 
 SSH_CONNECT_TIMEOUT ?= 3
@@ -156,7 +156,58 @@ _install-vcstool:
 		{ echo -e "$(H_RED)ERROR: failed to install vcstool$(H_NC)" >&2; exit 1; }; \
 	fi
 
-init: $(REPOS_YAML_RESOLVED) _install-deps _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
+_create-ssh-key:
+	@if [ ! -f "$(HOME)/.ssh/id_ed25519" ]; then \
+		echo -e "$(T_START) $(H_BLUE)Generating Ed25519 SSH key...$(H_NC)"; \
+		mkdir -p "$(HOME)/.ssh"; \
+		chmod 700 "$(HOME)/.ssh"; \
+		ssh-keygen -t ed25519 -f "$(HOME)/.ssh/id_ed25519" -N "" -q || { \
+			echo -e "$(T_ERR) $(H_RED)Failed to generate SSH key$(H_NC)" >&2; exit 1; \
+		}; \
+		chmod 600 "$(HOME)/.ssh/id_ed25519"; \
+		echo -e "$(T_OK) $(H_GREEN)SSH key generated: ~/.ssh/id_ed25519$(H_NC)"; \
+	elif [ ! -f "$(HOME)/.ssh/id_ed25519.pub" ]; then \
+		echo -e "$(T_START) $(H_BLUE)Generating public key from existing private key...$(H_NC)"; \
+		ssh-keygen -y -f "$(HOME)/.ssh/id_ed25519" > "$(HOME)/.ssh/id_ed25519.pub" || { \
+			echo -e "$(T_ERR) $(H_RED)Failed to generate public key from private key$(H_NC)" >&2; exit 1; \
+		}; \
+		chmod 644 "$(HOME)/.ssh/id_ed25519.pub"; \
+		echo -e "$(T_OK) $(H_GREEN)Public key generated: ~/.ssh/id_ed25519.pub$(H_NC)"; \
+	fi
+
+_register-github-key: _create-ssh-key
+	@if [ "$(USE_HTTPS)" = "1" ]; then \
+		echo -e "$(T_SKIP) $(H_YELLOW)HTTPS mode requested. Skipping SSH key registration.$(H_NC)"; \
+		exit 0; \
+	fi
+	@echo -e "$(T_START) $(H_BLUE)Checking GitHub SSH connectivity...$(H_NC)"
+	@ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=accept-new -o BatchMode=yes -T git@github.com >/dev/null 2>&1; \
+	ret=$$?; \
+	if [ $$ret -eq 0 ] || [ $$ret -eq 1 ]; then \
+		echo -e "$(T_OK) $(H_GREEN)GitHub SSH connection successful.$(H_NC)"; \
+	else \
+		echo -e "$(T_ITEM) $(H_YELLOW)SSH connection failed. Attempting automatic registration...$(H_NC)"; \
+		if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then \
+			echo -e "$(T_START) $(H_BLUE)Registering SSH key to GitHub via gh CLI...$(H_NC)"; \
+			gh ssh-key add "$(HOME)/.ssh/id_ed25519.pub" --title "Orchestrator Key ($$(hostname))" && { \
+				echo -e "$(T_OK) $(H_GREEN)Successfully registered key to GitHub.$(H_NC)"; \
+				exit 0; \
+			} || echo -e "$(T_ERR) $(H_RED)gh CLI key registration failed.$(H_NC)"; \
+		fi; \
+		echo -e "\n$(H_YELLOW)==========================================================="; \
+		echo -e "GitHub への SSH 接続が認証されていません。"; \
+		echo -e "以下の公開鍵を GitHub に登録してください：\n"; \
+		cat "$(HOME)/.ssh/id_ed25519.pub"; \
+		echo -e "\n登録先URL: https://github.com/settings/keys"; \
+		echo -e "===========================================================$(H_NC)\n"; \
+		if [ -t 0 ]; then \
+			read -p "GitHubへの鍵登録が完了したら、エンターキーを押して続行してください..." dummy; \
+		else \
+			echo -e "$(H_YELLOW)警告: 非対話環境を検出したため、キー登録の入力をスキップして続行します。$(H_NC)"; \
+		fi; \
+	fi
+
+init: _install-deps _register-github-key $(REPOS_YAML_RESOLVED) _set-timezone _install-vcstool ## 依存関係のインストールとリポジトリのクローンを行います
 	@echo -e "$(T_START) $(H_BLUE)Initializing dependencies and importing components...$(H_NC)"
 	@mkdir -p $(COMPONENTS_DIR)
 	@PATH="$(HOME)/.local/bin:$$PATH" vcs import $(COMPONENTS_DIR) < $(REPOS_YAML_RESOLVED)

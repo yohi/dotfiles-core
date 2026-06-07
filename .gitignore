@@ -13,3 +13,7 @@
 # dots
 dots
 .worktrees/
+
+# Ansible local configs
+/ansible/hosts.ini
+/ansible/vars.yml
