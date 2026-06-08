@@ -8,6 +8,16 @@ include common-mk/help.mk
 # Default target
 .DEFAULT_GOAL := help
 
+# GUI detection (Skip GUI apps on headless servers)
+ifndef SKIP_GUI
+    ifeq ($(shell uname -s),Linux)
+        IS_GRAPHICAL := $(shell systemctl get-default 2>/dev/null | grep -q graphical && echo 1 || echo 0)
+        ifneq ($(IS_GRAPHICAL),1)
+            export SKIP_GUI := 1
+        endif
+    endif
+endif
+
 COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml
 REPOS_YAML_RESOLVED := .repos.resolved.yaml
