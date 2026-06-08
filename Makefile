@@ -30,6 +30,7 @@ T_ITEM  := $(H_CYAN)$(H_BOLD)•$(H_NC)
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
+                if [ -d "/home/linuxbrew/.linuxbrew/bin" ]; then export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$$PATH"; fi; \
 		fail_count=0; \
 		total_count=0; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(H_NC)"; \

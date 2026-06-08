@@ -39,7 +39,7 @@ help: ## 利用可能なターゲットの一覧を表示します
 .PHONY: _print-categorized-help
 _print-categorized-help:
 	@# Main / Common
-	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' Makefile $(_MK_DIR)/main.mk $(_MK_DIR)/variables.mk $(_MK_DIR)/core.mk 2>/dev/null); \
+	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' Makefile $(_MK_DIR)/main.mk $(_MK_DIR)/variables.mk $(_MK_DIR)/setup.mk $(_MK_DIR)/core.mk 2>/dev/null); \
 	if [ -n "$$targets" ]; then \
 		echo -e "$(H_YELLOW)$(H_BOLD)[Main / Common]$(H_NC)"; \
 		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; !seen[$$1]++ { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }' | sort; \
