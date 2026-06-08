@@ -36,9 +36,8 @@ define dispatch
 		echo -e "$(H_MAGENTA)$(H_BOLD)┃ $$(printf '%-58s' "Dispatching '$(1)' to all components...") ┃$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛$(H_NC)"; \
 		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
-                        # PATH injected by orchestrator \
-								export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$$PATH"; \ \
-			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+		        if [ -d "/home/linuxbrew/.linuxbrew/bin" ]; then export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/opt/node/bin:$$PATH"; fi; \
+		        if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
@@ -235,9 +234,7 @@ _inject_common_mk:
 		set -e; \
 		echo -e "$(T_START) $(H_BLUE)Injecting common-mk into components...$(H_NC)"; \
 		for dir in "$(COMPONENTS_DIR)"/*; do \
-                        # PATH injected by orchestrator \
-								export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$$PATH"; \ \
-			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+		        if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				mkdir -p "$$dir/_mk"; \
 				ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk"; \
 				ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk"; \
