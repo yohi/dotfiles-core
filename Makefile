@@ -11,7 +11,21 @@ include common-mk/help.mk
 # GUI detection (Skip GUI apps on headless servers)
 ifndef SKIP_GUI
     ifeq ($(shell uname -s),Linux)
-        IS_GRAPHICAL := $(shell systemctl get-default 2>/dev/null | grep -q graphical && echo 1 || echo 0)
+        IS_GRAPHICAL := $(shell \
+            if command -v systemctl >/dev/null 2>&1; then \
+                systemctl get-default 2>/dev/null | grep -q graphical && echo 1 || echo 0; \
+            else \
+                if [ -n "$$DISPLAY" ] || [ -n "$$WAYLAND_DISPLAY" ]; then \
+                    echo 1; \
+                elif [ "$$XDG_SESSION_TYPE" = "x11" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
+                    echo 1; \
+                elif pgrep -x "Xorg" >/dev/null 2>&1 || pgrep -x "wayland" >/dev/null 2>&1; then \
+                    echo 1; \
+                else \
+                    echo 0; \
+                fi; \
+            fi \
+        )
         ifneq ($(IS_GRAPHICAL),1)
             export SKIP_GUI := 1
         endif
@@ -40,14 +54,14 @@ T_ITEM  := $(H_CYAN)$(H_BOLD)•$(H_NC)
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
+		if [ -d "/home/linuxbrew/.linuxbrew/bin" ]; then export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/opt/node/bin:$$PATH"; fi; \
 		fail_count=0; \
 		total_count=0; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┃ $$(printf '%-58s' "Dispatching '$(1)' to all components...") ┃$(H_NC)"; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛$(H_NC)"; \
 		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
-		        if [ -d "/home/linuxbrew/.linuxbrew/bin" ]; then export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/opt/node/bin:$$PATH"; fi; \
-		        if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
@@ -244,7 +258,7 @@ _inject_common_mk:
 		set -e; \
 		echo -e "$(T_START) $(H_BLUE)Injecting common-mk into components...$(H_NC)"; \
 		for dir in "$(COMPONENTS_DIR)"/*; do \
-		        if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
+			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				mkdir -p "$$dir/_mk"; \
 				ln -sf ../../../common-mk/idempotency.mk "$$dir/_mk/idempotency.mk"; \
 				ln -sf ../../../common-mk/help.mk "$$dir/_mk/help.mk"; \
