@@ -13,17 +13,20 @@ ifndef SKIP_GUI
     ifeq ($(shell uname -s),Linux)
         IS_GRAPHICAL := $(shell \
             if command -v systemctl >/dev/null 2>&1; then \
-                systemctl get-default 2>/dev/null | grep -q graphical && echo 1 || echo 0; \
-            else \
-                if [ -n "$$DISPLAY" ] || [ -n "$$WAYLAND_DISPLAY" ]; then \
-                    echo 1; \
-                elif [ "$$XDG_SESSION_TYPE" = "x11" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
-                    echo 1; \
-                elif pgrep -x "Xorg" >/dev/null 2>&1 || pgrep -x "wayland" >/dev/null 2>&1; then \
-                    echo 1; \
-                else \
-                    echo 0; \
+                DEFAULT_TARGET=$$(systemctl get-default 2>/dev/null); \
+                if [ $$? -eq 0 ]; then \
+                    echo "$$DEFAULT_TARGET" | grep -q graphical && echo 1 || echo 0; \
+                    exit 0; \
                 fi; \
+            fi; \
+            if [ -n "$$DISPLAY" ] || [ -n "$$WAYLAND_DISPLAY" ]; then \
+                echo 1; \
+            elif [ "$$XDG_SESSION_TYPE" = "x11" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
+                echo 1; \
+            elif pgrep -x "Xorg" >/dev/null 2>&1 || pgrep -x "wayland" >/dev/null 2>&1; then \
+                echo 1; \
+            else \
+                echo 0; \
             fi \
         )
         ifneq ($(IS_GRAPHICAL),1)
