@@ -8,6 +8,33 @@ include common-mk/help.mk
 # Default target
 .DEFAULT_GOAL := help
 
+# GUI detection (Skip GUI apps on headless servers)
+ifndef SKIP_GUI
+    ifeq ($(shell uname -s),Linux)
+        IS_GRAPHICAL := $(shell \
+            if command -v systemctl >/dev/null 2>&1; then \
+                DEFAULT_TARGET=$$(systemctl get-default 2>/dev/null); \
+                if [ $$? -eq 0 ]; then \
+                    echo "$$DEFAULT_TARGET" | grep -q graphical && echo 1 || echo 0; \
+                    exit 0; \
+                fi; \
+            fi; \
+            if [ -n "$$DISPLAY" ] || [ -n "$$WAYLAND_DISPLAY" ]; then \
+                echo 1; \
+            elif [ "$$XDG_SESSION_TYPE" = "x11" ] || [ "$$XDG_SESSION_TYPE" = "wayland" ]; then \
+                echo 1; \
+            elif pgrep -x "Xorg" >/dev/null 2>&1 || pgrep -x "wayland" >/dev/null 2>&1; then \
+                echo 1; \
+            else \
+                echo 0; \
+            fi \
+        )
+        ifneq ($(IS_GRAPHICAL),1)
+            export SKIP_GUI := 1
+        endif
+    endif
+endif
+
 COMPONENTS_DIR := components
 REPOS_YAML := repos.yaml
 REPOS_YAML_RESOLVED := .repos.resolved.yaml
@@ -30,6 +57,7 @@ T_ITEM  := $(H_CYAN)$(H_BOLD)•$(H_NC)
 define dispatch
 	@if [ -d "$(COMPONENTS_DIR)" ]; then \
 		if [ -f "$(BW_SESSION_FILE)" ]; then export BW_SESSION=$$(cat "$(BW_SESSION_FILE)"); fi; \
+		if [ -d "/home/linuxbrew/.linuxbrew/bin" ]; then export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/linuxbrew/.linuxbrew/opt/node/bin:$$PATH"; fi; \
 		fail_count=0; \
 		total_count=0; \
 		echo -e "$(H_MAGENTA)$(H_BOLD)┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓$(H_NC)"; \
