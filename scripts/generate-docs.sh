@@ -515,7 +515,7 @@ rm -rf ~/.config/Code/User
 rm -rf ~/.vscode
 
 # 再セットアップ
-cd ~/dots
+cd ~/dotfiles
 make setup
 ```
 

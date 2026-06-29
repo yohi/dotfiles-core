@@ -169,7 +169,7 @@ check_neovim() {
         
         # 設定ファイルの確認
         local config_dir="$HOME/.config/nvim"
-        local dotfiles_dir="${DOTFILES_DIR:-$HOME/dots}/vim"
+        local dotfiles_dir="${DOTFILES_DIR:-$HOME/dotfiles}/vim"
         
         if [[ -L "$config_dir" ]] && [[ -d "$dotfiles_dir" ]]; then
             record_result "PASS" "Neovim設定がシンボリックリンクされています"
@@ -316,7 +316,7 @@ check_gnome() {
 check_dotfiles() {
     log_step "dotfiles設定を確認中..."
     
-    local dotfiles_dir="${DOTFILES_DIR:-$HOME/dots}"
+    local dotfiles_dir="${DOTFILES_DIR:-$HOME/dotfiles}"
     
     if [[ -d "$dotfiles_dir" ]]; then
         record_result "PASS" "dotfilesディレクトリが存在します"
@@ -396,7 +396,7 @@ show_recommendations() {
     
     echo ""
     echo -e "${BLUE}💡 追加の推奨事項:${NC}"
-    echo "  1. 定期的な更新: cd \"\${DOTFILES_DIR:-\$HOME/dots}\" && git pull && make setup"
+    echo "  1. 定期的な更新: cd \"\${DOTFILES_DIR:-\$HOME/dotfiles}\" && git pull && make setup"
     echo "  2. 設定バックアップ: make setup"
     echo "  3. 詳細ヘルプ: make help"
 }
