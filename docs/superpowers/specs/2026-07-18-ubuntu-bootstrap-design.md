@@ -43,7 +43,11 @@
    - SSH デーモンのセキュリティ設定（root ログイン禁止、パスワード認証無効化）
    - SSH サービスの再起動
 4. 操作 PC から `ansible/run.sh` を実行し、`bootstrap.yml` で本セットアップを実施する。
-5. 本セットアップにより dotfiles-core のクローン、完全なパッケージインストール、SSH ポート変更などが行われる。
+5. 本セットアップはターゲット上で Deploy Key を生成し、その公開鍵を GitHub に
+   read-only Deploy Key として登録してから、dotfiles-core のクローン、完全な
+   パッケージインストール、SSH ポート変更などを行う。秘密鍵はターゲット上の
+   `~/.ssh` にのみ保存し、ターゲット外へ転送・表示しない。トークン未指定時は
+   公開鍵を表示して手動登録を待機する。
 
 ### VPS の場合
 
@@ -247,23 +251,27 @@ dotfiles-core/
 - ターゲット PC 上で `scripts/bootstrap.sh` の実行が完了している。
 - `y_ohi` ユーザーが存在し、操作 PC の SSH 公開鍵で認証可能である。
 - 初期接続はポート 22 を使用する。
+- private な dotfiles-core を取得するため、ターゲット上で生成した Deploy Key の
+  公開鍵を GitHub に read-only で登録する。登録には一時 extra-vars ファイル経由の
+  `github_token` を用いるか、公開鍵を手動登録する。秘密鍵はターゲット外へ渡さない。
 
 #### 主なタスク
 
 1. 一般ユーザー `y_ohi` が存在することを確認（冪等性のため）
 2. 操作 PC の SSH 公開鍵が `y_ohi` の `authorized_keys` に登録されていることを確認
-3. dotfiles-core のクローン
-4. 完全なパッケージインストール
-5. SSH デーモンのセキュリティ設定
+3. ターゲット用 Deploy Key の生成と read-only 登録
+4. dotfiles-core のクローン
+5. 完全なパッケージインストール
+6. SSH デーモンのセキュリティ設定
    - ポート番号変更
    - root ログイン禁止
    - パスワード認証無効化
-6. ファイアウォール（UFW）設定
-7. SSH 接続の再確認
+7. ファイアウォール（UFW）設定
+8. 新ポート・対象ユーザー・公開鍵認証による SSH 接続とコマンド実行の再確認
 
 #### 既存資産との関係
 
-- ユーザー作成、sudo 設定、GitHub Deploy Key 登録はブートストラップ側で済んでいるため、本プレイブックでは行わない。
+- ユーザー作成と sudo 設定はブートストラップ側で済んでいる。Deploy Key は private repository の clone 前に本プレイブックで生成・登録する。
 - 本セットアップの共通部分は `roles/common-setup/` を参照する。
 
 ### 5. 対話式セットアップランチャー `ansible/run.sh`
@@ -307,11 +315,14 @@ dotfiles-core/
 #### 含めるタスク
 
 - dotfiles-core のクローン
-- 完全なパッケージインストール（必要に応じて `Makefile` 経由）
+- 共通パッケージの導入
+  - `git`、`make`、`curl`、`jq`、`python3`、`python3-pip`
+  - `ansible.builtin.apt` でキャッシュ更新と `state: present` を実行する
+  - 導入に失敗した場合は Ansible の通常の失敗処理で play を停止する
 - SSH デーモンのセキュリティ設定
 - SSH サービスの再起動
 - ファイアウォール（UFW）設定
-- SSH 接続の再確認
+- 新ポート・対象ユーザー・公開鍵認証による SSH 接続とコマンド実行の再確認
 
 ## セキュリティ設計
 

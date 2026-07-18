@@ -74,9 +74,18 @@ RUN apt-get update && \
     apt-get install -y curl openssh-server sudo && \
     rm -rf /var/lib/apt/lists/*
 
-# テスト用の簡易 SSH 鍵を事前に用意して authorized_keys を模倣
+# テスト用の SSH 鍵と、GitHub の鍵取得を模倣するローカル fixture を用意
 RUN mkdir -p /tmp/testkeys && \
-    ssh-keygen -t ed25519 -f /tmp/testkeys/id_ed25519 -N "" -q
+    ssh-keygen -t ed25519 -f /tmp/testkeys/id_ed25519 -N "" -q && \
+    cp /tmp/testkeys/id_ed25519.pub /tmp/testkeys/authorized_keys && \
+    mkdir -p /tmp/testbin && \
+    printf '%s\n' \
+      '#!/bin/sh' \
+      'cat /tmp/testkeys/authorized_keys' > /tmp/testbin/curl && \
+    chmod 0755 /tmp/testbin/curl
+
+# bootstrap.sh が外部 GitHub ではなく fixture を取得するようにする
+ENV PATH="/tmp/testbin:${PATH}"
 
 COPY scripts/bootstrap.sh /tmp/bootstrap.sh
 COPY tests/bootstrap/test_bootstrap.sh /tmp/test_bootstrap.sh
@@ -100,9 +109,10 @@ groups y_ohi | grep -q sudo
 [ -f /etc/sudoers.d/y_ohi ]
 /usr/sbin/visudo -cf /etc/sudoers.d/y_ohi
 
-# authorized_keys にテスト用公開鍵が含まれる
+# authorized_keys が fixture の公開鍵と完全一致する
 [ -f /home/y_ohi/.ssh/authorized_keys ]
-grep -q "y_ohi@" /home/y_ohi/.ssh/authorized_keys || true
+EXPECTED_SSH_PUBLIC_KEY="$(cat /tmp/testkeys/id_ed25519.pub)"
+test "$(cat /home/y_ohi/.ssh/authorized_keys)" = "${EXPECTED_SSH_PUBLIC_KEY}"
 
 # SSH 設定が正しく変更されている
 sshd -T | grep -q "permitrootlogin no"
@@ -129,8 +139,10 @@ if [ ! -f /etc/os-release ]; then
 fi
 # shellcheck source=/dev/null
 source /etc/os-release
-if [[ "${ID}" != "ubuntu" ]]; then
-    echo "ERROR: This script supports Ubuntu only (found: ${ID})" >&2
+if [[ "${ID}" != "ubuntu" ]] || \
+   [[ "${VERSION_ID}" != "22.04" && "${VERSION_ID}" != "24.04" ]]; then
+    echo "ERROR: Unsupported OS: ${ID} ${VERSION_ID}." >&2
+    echo "ERROR: Ubuntu 22.04 or 24.04 is required." >&2
     exit 1
 fi
 
@@ -183,12 +195,35 @@ if ! sshd -t; then
     exit 1
 fi
 
-sed -i -E 's/^#?PermitRootLogin\s+.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i -E 's/^#?PasswordAuthentication\s+.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i -E 's/^#?PubkeyAuthentication\s+.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+set_sshd_directive() {
+    local key="$1"
+    local value="$2"
+
+    if grep -Eq \
+        "^[[:space:]]*#?[[:space:]]*${key}[[:space:]]+" \
+        /etc/ssh/sshd_config; then
+        sed -i -E \
+            "s|^[[:space:]]*#?[[:space:]]*${key}" \
+            "[[:space:]]+.*|${key} ${value}|" \
+            /etc/ssh/sshd_config
+    else
+        printf '%s %s\n' "${key}" "${value}" >> /etc/ssh/sshd_config
+    fi
+}
+
+set_sshd_directive PermitRootLogin no
+set_sshd_directive PasswordAuthentication no
+set_sshd_directive PubkeyAuthentication yes
 
 if ! sshd -t; then
     echo "ERROR: sshd configuration became invalid after modification" >&2
+    exit 1
+fi
+
+if ! sshd -T | grep -qx 'permitrootlogin no' || \
+   ! sshd -T | grep -qx 'passwordauthentication no' || \
+   ! sshd -T | grep -qx 'pubkeyauthentication yes'; then
+    echo "ERROR: sshd effective settings do not match the required hardening" >&2
     exit 1
 fi
 
@@ -230,6 +265,7 @@ git commit -m "feat: 物理 PC 用ブートストラップスクリプトを追�
 **Files:**
 - Create: `scripts/workers/install.js`
 - Create: `scripts/workers/install.test.js`
+- Create: `scripts/workers/package.json`
 - Create: `scripts/workers/wrangler.toml`
 
 **Interfaces:**
@@ -297,7 +333,18 @@ export default {
 };
 ```
 
-- [ ] **Step 2: wrangler.toml を作成**
+- [ ] **Step 2: Workers テストの依存関係を定義**
+
+```json
+{
+  "type": "module",
+  "devDependencies": {
+    "miniflare": "3.20250718.0"
+  }
+}
+```
+
+- [ ] **Step 3: wrangler.toml を作成**
 
 ```toml
 name = "dotfiles-bootstrap"
@@ -312,7 +359,7 @@ EXPECTED_PREFIX = "#!/bin/bash"
 EXPECTED_MARKER = "# dotfiles-bootstrap"
 ```
 
-- [ ] **Step 3: Workers テストを作成（Miniflare 使用）**
+- [ ] **Step 4: Workers テストを作成（Miniflare 使用）**
 
 ```javascript
 // scripts/workers/install.test.js
@@ -321,36 +368,40 @@ import assert from "node:assert";
 import { createFetchMock, Miniflare } from "miniflare";
 
 const fixtureScript = "#!/bin/bash\n# dotfiles-bootstrap\necho bootstrap\n";
-const fetchMock = createFetchMock();
-fetchMock.disableNetConnect();
-fetchMock
-  .get("https://raw.githubusercontent.com")
-  .intercept({
-    path: "/yohi/dotfiles-core/master/scripts/bootstrap.sh",
-    method: "GET",
-  })
-  .reply(200, fixtureScript);
+function createWorker(status = 200, body = fixtureScript) {
+  const fetchMock = createFetchMock();
+  fetchMock.disableNetConnect();
+  fetchMock
+    .get("https://raw.githubusercontent.com")
+    .intercept({
+      path: "/yohi/dotfiles-core/master/scripts/bootstrap.sh",
+      method: "GET",
+    })
+    .reply(status, body);
 
-const mf = new Miniflare({
-  modules: true,
-  scriptPath: "./scripts/workers/install.js",
-  compatibilityDate: "2025-01-01",
-  fetchMock,
-  bindings: {
-    GITHUB_REPO: "yohi/dotfiles-core",
-    GITHUB_REF: "master",
-    SCRIPT_PATH: "scripts/bootstrap.sh",
-    EXPECTED_PREFIX: "#!/bin/bash",
-    EXPECTED_MARKER: "# dotfiles-bootstrap",
-  },
-});
+  return new Miniflare({
+    modules: true,
+    scriptPath: "./scripts/workers/install.js",
+    compatibilityDate: "2025-01-01",
+    fetchMock,
+    bindings: {
+      GITHUB_REPO: "yohi/dotfiles-core",
+      GITHUB_REF: "master",
+      SCRIPT_PATH: "scripts/bootstrap.sh",
+      EXPECTED_PREFIX: "#!/bin/bash",
+      EXPECTED_MARKER: "# dotfiles-bootstrap",
+    },
+  });
+}
 
 test("returns 404 for unknown paths", async () => {
+  const mf = createWorker();
   const res = await mf.dispatchFetch("https://example.com/");
   assert.strictEqual(res.status, 404);
 });
 
 test("returns 200 with sha256 header for install.sh", async () => {
+  const mf = createWorker();
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 200);
   assert.strictEqual(
@@ -360,19 +411,31 @@ test("returns 200 with sha256 header for install.sh", async () => {
   const body = await res.text();
   assert.strictEqual(body, fixtureScript);
 });
+
+test("returns 503 when GitHub cannot provide the script", async () => {
+  const mf = createWorker(502, "upstream failure");
+  const res = await mf.dispatchFetch("https://example.com/install.sh");
+  assert.strictEqual(res.status, 503);
+});
+
+test("returns 500 when the script fails integrity validation", async () => {
+  const mf = createWorker(200, "echo invalid");
+  const res = await mf.dispatchFetch("https://example.com/install.sh");
+  assert.strictEqual(res.status, 500);
+});
 ```
 
-- [ ] **Step 4: テスト実行**
+- [ ] **Step 5: テスト実行**
 
 ```bash
 cd /home/y_ohi/dotfiles/scripts/workers
-npm install --save-dev miniflare
+npm install --save-dev --save-exact miniflare@3.20250718.0
 node install.test.js
 ```
 
-Expected: 2 tests pass。
+Expected: 4 tests pass。
 
-- [ ] **Step 5: コミット**
+- [ ] **Step 6: コミット**
 
 ```bash
 git add scripts/workers/
@@ -388,8 +451,8 @@ git commit -m "feat: Cloudflare Workers によるブートストラップスク�
 - Create: `ansible/roles/common-setup/tasks/main.yml`
 
 **Interfaces:**
-- Consumes: `username`, `ssh_public_key_path`, `new_ssh_port`
-- Produces: cloned `/home/{{ username }}/dotfiles`, hardened sshd, UFW rule for `new_ssh_port`, verified SSH connectivity on new port
+- Consumes: `username`, `ssh_public_key_path`, `new_ssh_port`, `common_packages`
+- Produces: cloned `/home/{{ username }}/dotfiles`, installed common packages, hardened sshd, UFW rule for `new_ssh_port`, verified SSH authentication on new port
 
 - [ ] **Step 1: デフォルト変数を作成**
 
@@ -399,6 +462,13 @@ git commit -m "feat: Cloudflare Workers によるブートストラップスク�
 username: "y_ohi"
 ssh_public_key_path: "~/.ssh/id_ed25519.pub"
 new_ssh_port: 5310
+common_packages:
+  - git
+  - make
+  - curl
+  - jq
+  - python3
+  - python3-pip
 ```
 
 - [ ] **Step 2: 共通タスクを作成**
@@ -414,11 +484,19 @@ new_ssh_port: 5310
   become: true
   become_user: "{{ username }}"
 
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
 - name: Clone dotfiles-core repository
   ansible.builtin.git:
     repo: "git@github.com:yohi/dotfiles-core.git"
     dest: "/home/{{ username }}/dotfiles"
     accept_hostkey: true
+    key_file: "/home/{{ username }}/.ssh/id_ed25519"
     version: master
   become: true
   become_user: "{{ username }}"
@@ -482,14 +560,17 @@ new_ssh_port: 5310
 - name: Flush handlers to restart SSH immediately
   ansible.builtin.meta: flush_handlers
 
-- name: Verify SSH connection on new port
-  ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
-    port: "{{ new_ssh_port }}"
-    state: started
-    delay: 2
+- name: Switch Ansible to the hardened SSH endpoint
+  ansible.builtin.set_fact:
+    ansible_port: "{{ new_ssh_port }}"
+    ansible_user: "{{ username }}"
+
+- name: Reset the previous SSH control connection
+  ansible.builtin.meta: reset_connection
+
+- name: Verify SSH authentication and command execution on the new port
+  ansible.builtin.wait_for_connection:
     timeout: 30
-  delegate_to: localhost
   become: false
 ```
 
@@ -500,7 +581,7 @@ cd /home/y_ohi/dotfiles/ansible
 ansible-playbook --syntax-check -i hosts.ini setup.yml
 ```
 
-Expected: エラーなしで終了。`hosts.ini` が存在しない場合はダミーを作成してチェックする。
+Expected: エラーなしで終了。パッケージ導入は Ansible の通常の失敗処理に従い、失敗時は play を停止する。`hosts.ini` が存在しない場合はダミーを作成してチェックする。
 
 - [ ] **Step 4: コミット**
 
@@ -574,7 +655,27 @@ git commit -m "feat: Ansible 共通ロール common-setup を追加"
           ===========================================================
       when: github_token | default('') | length == 0
 
-    - name: Automatically register SSH public key as GitHub Deploy Key
+    - name: Retrieve existing GitHub Deploy Keys
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
+        method: GET
+        headers:
+          Authorization: "token {{ github_token }}"
+          Accept: "application/vnd.github+json"
+          X-GitHub-Api-Version: "2022-11-28"
+        status_code: [200]
+        return_content: true
+      register: existing_deploy_keys
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Identify an existing matching GitHub Deploy Key
+      ansible.builtin.set_fact:
+        matching_deploy_keys: "{{ existing_deploy_keys.json | selectattr('key', 'equalto', ssh_pub_key) | list }}"
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Register SSH public key as GitHub Deploy Key when absent
       ansible.builtin.uri:
         url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
         method: POST
@@ -589,7 +690,9 @@ git commit -m "feat: Ansible 共通ロール common-setup を追加"
           read_only: true
         status_code: [201]
       no_log: true
-      when: github_token | default('') | length > 0
+      when:
+        - github_token | default('') | length > 0
+        - matching_deploy_keys | length == 0
 
     - name: Pause and wait for Deploy Key registration
       ansible.builtin.pause:
@@ -636,8 +739,8 @@ git commit -m "refactor: VPS 用 setup.yml を common-setup ロールを使う�
 - Create: `ansible/bootstrap.yml`
 
 **Interfaces:**
-- Consumes: `username`, `ssh_public_key_path`, `new_ssh_port` from `vars.yml`; assumes user `y_ohi` already exists on port 22
-- Produces: calls `common-setup` role
+- Consumes: `username`, `ssh_public_key_path`, `new_ssh_port` from `vars.yml`, optional `github_token` from the temporary extra-vars file; assumes user `y_ohi` already exists on port 22
+- Produces: a target-local Deploy Key for cloning the private repository, then calls `common-setup` role
 
 - [ ] **Step 1: bootstrap.yml を作成**
 
@@ -661,6 +764,73 @@ git commit -m "refactor: VPS 用 setup.yml を common-setup ロールを使う�
         user: "{{ username }}"
         state: present
         key: "{{ lookup('ansible.builtin.file', ssh_public_key_path) }}"
+
+    # The private key remains on the target; only its public half is registered with GitHub.
+    - name: Ensure target Deploy Key exists
+      ansible.builtin.user:
+        name: "{{ username }}"
+        generate_ssh_key: true
+        ssh_key_type: ed25519
+        ssh_key_file: .ssh/id_ed25519
+        state: present
+
+    - name: Read target Deploy Key public key
+      ansible.builtin.slurp:
+        src: "/home/{{ username }}/.ssh/id_ed25519.pub"
+      register: ssh_pub_key_base64
+
+    - name: Set Deploy Key public key fact
+      ansible.builtin.set_fact:
+        ssh_pub_key: "{{ ssh_pub_key_base64['content'] | b64decode | trim }}"
+
+    - name: Retrieve existing GitHub Deploy Keys
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
+        method: GET
+        headers:
+          Authorization: "token {{ github_token }}"
+          Accept: "application/vnd.github+json"
+          X-GitHub-Api-Version: "2022-11-28"
+        status_code: [200]
+        return_content: true
+      register: existing_deploy_keys
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Identify an existing matching GitHub Deploy Key
+      ansible.builtin.set_fact:
+        matching_deploy_keys: "{{ existing_deploy_keys.json | selectattr('key', 'equalto', ssh_pub_key) | list }}"
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Register target public key as GitHub Deploy Key when absent
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
+        method: POST
+        headers:
+          Authorization: "token {{ github_token }}"
+          Accept: "application/vnd.github+json"
+          X-GitHub-Api-Version: "2022-11-28"
+        body_format: json
+        body:
+          title: "Physical-PC-Target-Key"
+          key: "{{ ssh_pub_key }}"
+          read_only: true
+        status_code: [201]
+      no_log: true
+      when:
+        - github_token | default('') | length > 0
+        - matching_deploy_keys | length == 0
+
+    - name: Display target public key for manual Deploy Key registration
+      ansible.builtin.debug:
+        msg: "Register this public key as a read-only Deploy Key: {{ ssh_pub_key }}"
+      when: github_token | default('') | length == 0
+
+    - name: Pause for manual Deploy Key registration
+      ansible.builtin.pause:
+        prompt: "GitHub Deploy Key の登録後にエンターキーを押してください..."
+      when: github_token | default('') | length == 0
 
   roles:
     - role: common-setup
@@ -732,8 +902,8 @@ fi
 ```bash
 # --- GitHub Token の入力 ---
 GITHUB_TOKEN_INPUT=""
-if [ "${PLAYBOOK}" = "setup.yml" ]; then
-    read -rs -p "GitHub Personal Access Token (空の場合は手動登録): " GITHUB_TOKEN_INPUT
+if [ "${PLAYBOOK}" = "setup.yml" ] || [ "${PLAYBOOK}" = "bootstrap.yml" ]; then
+    read -rs -p "GitHub Personal Access Token (空の場合は手動 Deploy Key 登録): " GITHUB_TOKEN_INPUT
     echo
 fi
 
