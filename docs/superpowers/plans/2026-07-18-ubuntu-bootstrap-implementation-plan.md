@@ -203,8 +203,7 @@ set_sshd_directive() {
         "^[[:space:]]*#?[[:space:]]*${key}[[:space:]]+" \
         /etc/ssh/sshd_config; then
         sed -i -E \
-            "s|^[[:space:]]*#?[[:space:]]*${key}" \
-            "[[:space:]]+.*|${key} ${value}|" \
+            "s|^[[:space:]]*#?[[:space:]]*${key}[[:space:]]+.*|${key} ${value}|" \
             /etc/ssh/sshd_config
     else
         printf '%s %s\n' "${key}" "${value}" >> /etc/ssh/sshd_config
