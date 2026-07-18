@@ -156,6 +156,20 @@ if [ -z "${PUBKEYS}" ]; then
     exit 1
 fi
 
+while IFS= read -r key || [ -n "${key}" ]; do
+    if [ -z "${key}" ] || LC_ALL=C printf '%s' "${key}" | grep -q '[^ -~]'; then
+        echo "ERROR: Invalid characters in SSH public key" >&2
+        exit 1
+    fi
+
+    if ! printf '%s\n' "${key}" | ssh-keygen -l -f - >/dev/null 2>&1; then
+        echo "ERROR: Invalid SSH public key format" >&2
+        exit 1
+    fi
+done <<EOF
+${PUBKEYS}
+EOF
+
 SSH_DIR="/home/${USERNAME}/.ssh"
 mkdir -p "${SSH_DIR}"
 printf '%s\n' "${PUBKEYS}" > "${SSH_DIR}/authorized_keys"
@@ -304,12 +318,24 @@ EXPECTED_MARKER = "# dotfiles-bootstrap"
 // scripts/workers/install.test.js
 import test from "node:test";
 import assert from "node:assert";
-import { Miniflare } from "miniflare";
+import { createFetchMock, Miniflare } from "miniflare";
+
+const fixtureScript = "#!/bin/bash\n# dotfiles-bootstrap\necho bootstrap\n";
+const fetchMock = createFetchMock();
+fetchMock.disableNetConnect();
+fetchMock
+  .get("https://raw.githubusercontent.com")
+  .intercept({
+    path: "/yohi/dotfiles-core/master/scripts/bootstrap.sh",
+    method: "GET",
+  })
+  .reply(200, fixtureScript);
 
 const mf = new Miniflare({
   modules: true,
   scriptPath: "./scripts/workers/install.js",
   compatibilityDate: "2025-01-01",
+  fetchMock,
   bindings: {
     GITHUB_REPO: "yohi/dotfiles-core",
     GITHUB_REF: "master",
@@ -327,10 +353,12 @@ test("returns 404 for unknown paths", async () => {
 test("returns 200 with sha256 header for install.sh", async () => {
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 200);
-  assert.ok(res.headers.get("X-Script-SHA256"));
+  assert.strictEqual(
+    res.headers.get("X-Script-SHA256"),
+    "8fb9f701c258969600e289e52cc070e09d52645f0d0463bf2559140d5ad6ee63"
+  );
   const body = await res.text();
-  assert.ok(body.startsWith("#!/bin/bash"));
-  assert.ok(body.includes("# dotfiles-bootstrap"));
+  assert.strictEqual(body, fixtureScript);
 });
 ```
 
@@ -503,7 +531,7 @@ git commit -m "feat: Ansible 共通ロール common-setup を追加"
   vars_files:
     - vars.yml
 
-  tasks:
+  pre_tasks:
     - name: Ensure target user exists
       ansible.builtin.user:
         name: "{{ username }}"
@@ -560,6 +588,7 @@ git commit -m "feat: Ansible 共通ロール common-setup を追加"
           key: "{{ ssh_pub_key }}"
           read_only: true
         status_code: [201]
+      no_log: true
       when: github_token | default('') | length > 0
 
     - name: Pause and wait for Deploy Key registration
@@ -621,7 +650,7 @@ git commit -m "refactor: VPS 用 setup.yml を common-setup ロールを使う�
   vars_files:
     - vars.yml
 
-  tasks:
+  pre_tasks:
     - name: Ensure target user exists
       ansible.builtin.user:
         name: "{{ username }}"
@@ -674,7 +703,7 @@ git commit -m "feat: 物理 PC 用 bootstrap.yml を追加"
 
 **Interfaces:**
 - Consumes: user input; existing `hosts.ini` and `vars.yml` defaults
-- Produces: updated `hosts.ini`, `vars.yml`; runs selected playbook with optional `github_token` passed via env/extra-vars
+- Produces: updated `hosts.ini`, `vars.yml`; runs selected playbook with an optional `github_token` supplied from a temporary extra-vars file
 
 - [ ] **Step 1: run.sh を修正して playbook 選択と token 扱いを追加**
 
@@ -696,13 +725,16 @@ if [ "${PLAYBOOK}" != "setup.yml" ] && [ "${PLAYBOOK}" != "bootstrap.yml" ]; the
 fi
 ```
 
-また、vars.yml 生成時に `github_token` を含めないようにし、代わりに以下のように `ansible-playbook` 実行時に環境変数経由で渡す。
+また、vars.yml 生成時に `github_token` を含めない。トークンは非表示で受け取り、
+モード `0600` の一時 JSON ファイルを `--extra-vars @<file>` で指定する。これにより
+トークン値をプロセス引数へ含めず、`trap` により実行後に一時ファイルを削除する。
 
 ```bash
 # --- GitHub Token の入力 ---
 GITHUB_TOKEN_INPUT=""
 if [ "${PLAYBOOK}" = "setup.yml" ]; then
-    read -p "GitHub Personal Access Token (空の場合は手動登録): " GITHUB_TOKEN_INPUT
+    read -rs -p "GitHub Personal Access Token (空の場合は手動登録): " GITHUB_TOKEN_INPUT
+    echo
 fi
 
 # --- vars.yml 生成 ---
@@ -715,8 +747,24 @@ EOF
 
 # --- プレイブック実行 ---
 EXTRA_VARS_ARGS=()
+GITHUB_TOKEN_FILE=""
+
+cleanup_github_token_file() {
+    if [ -n "${GITHUB_TOKEN_FILE}" ]; then
+        rm -f "${GITHUB_TOKEN_FILE}"
+    fi
+}
+trap cleanup_github_token_file EXIT
+
 if [ -n "${GITHUB_TOKEN_INPUT}" ]; then
-    EXTRA_VARS_ARGS+=("-e" "github_token=${GITHUB_TOKEN_INPUT}")
+    GITHUB_TOKEN_FILE="$(mktemp "${TMPDIR:-/tmp}/dotfiles-github-token.XXXXXX")"
+    chmod 600 "${GITHUB_TOKEN_FILE}"
+    printf '%s' "${GITHUB_TOKEN_INPUT}" | python3 -c '
+import json
+import sys
+print(json.dumps({"github_token": sys.stdin.read()}))
+' > "${GITHUB_TOKEN_FILE}"
+    EXTRA_VARS_ARGS+=("--extra-vars" "@${GITHUB_TOKEN_FILE}")
 fi
 
 ansible-playbook "${SCRIPT_DIR}/${PLAYBOOK}" \
@@ -756,14 +804,40 @@ git commit -m "feat: ansible/run.sh で playbook 選択と GitHub Token の安�
 
 既存の内容を維持しつつ、以下を追記。
 
-```markdown
+````markdown
 ## 物理 PC のセットアップ
 
-物理 PC は外部からの SSH 接続ができないため、ターゲット PC のコンソールで以下を実行します。
+物理 PC は外部からの SSH 接続ができないため、ターゲット PC のコンソールでスクリプトをダウンロード、転送整合性を確認し、内容を確認してから実行します。
 
 ```bash
-curl -fsSL https://setup.yourdomain.com/install.sh | sh
+SCRIPT_FILE="$(mktemp)"
+HEADER_FILE="$(mktemp)"
+trap 'rm -f "${SCRIPT_FILE}" "${HEADER_FILE}"' EXIT
+
+curl -fsSL -D "${HEADER_FILE}" -o "${SCRIPT_FILE}" \
+  https://setup.yourdomain.com/install.sh
+EXPECTED_HASH="$(
+  awk -F ': ' '
+    tolower($1) == "x-script-sha256" {
+      gsub("\\r", "", $2)
+      print $2
+    }
+  ' "${HEADER_FILE}"
+)"
+ACTUAL_HASH="$(sha256sum "${SCRIPT_FILE}" | awk '{print $1}')"
+
+if [ -z "${EXPECTED_HASH}" ] || [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
+  echo "ERROR: install.sh SHA-256 verification failed" >&2
+  exit 1
+fi
+
+less "${SCRIPT_FILE}"
+read -r -p "内容を確認しました。実行しますか？ [y/N] " CONFIRM
+[ "${CONFIRM}" = "y" ] || [ "${CONFIRM}" = "Y" ] || exit 0
+/bin/bash "${SCRIPT_FILE}"
 ```
+
+`X-Script-SHA256` は同じ Workers レスポンスから取得するため、上記の比較は転送中の破損検出に限られます。侵害された Workers を検出するには、別経路で信頼した固定ハッシュまたは署名が必要であり、このフローの範囲外です。
 
 その後、操作 PC で以下を実行します。
 
@@ -782,7 +856,7 @@ cd ansible
 ./run.sh
 # プロンプトで setup.yml を選択
 ```
-```
+````
 
 - [ ] **Step 2: コミット**
 
