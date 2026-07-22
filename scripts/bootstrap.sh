@@ -35,7 +35,7 @@ chmod 0440 /etc/sudoers.d/"${USERNAME}"
 /usr/sbin/visudo -cf /etc/sudoers.d/"${USERNAME}"
 
 echo "==> Fetching SSH public key from GitHub..."
-PUBKEYS="$(curl -fsSL "${GITHUB_KEYS_URL}")"
+PUBKEYS="$(curl -fsSL --proto '=https' --proto-redir '=https' "${GITHUB_KEYS_URL}")"
 if [ -z "${PUBKEYS}" ]; then
     echo "ERROR: Failed to fetch public keys from ${GITHUB_KEYS_URL}" >&2
     exit 1
