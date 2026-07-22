@@ -1,0 +1,10 @@
+name = "dotfiles-bootstrap"
+main = "install.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+GITHUB_REPO = "yohi/dotfiles-core"
+GITHUB_REF = "master"
+SCRIPT_PATH = "scripts/bootstrap.sh"
+EXPECTED_PREFIX = "#!/bin/bash"
+EXPECTED_MARKER = "# dotfiles-bootstrap"
