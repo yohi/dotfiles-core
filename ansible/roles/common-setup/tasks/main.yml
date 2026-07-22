@@ -96,3 +96,26 @@
   ansible.builtin.wait_for_connection:
     timeout: 30
   become: false
+
+- name: Gather the effective SSH daemon configuration over the new connection
+  ansible.builtin.command: sshd -T
+  become: true
+  changed_when: false
+  register: sshd_effective_config
+
+- name: Assert the SSH hardening is reflected in the effective configuration
+  ansible.builtin.assert:
+    that:
+      - '("port " ~ new_ssh_port) in sshd_effective_config.stdout_lines'
+      - '"permitrootlogin no" in sshd_effective_config.stdout_lines'
+      - '"passwordauthentication no" in sshd_effective_config.stdout_lines'
+    fail_msg: >-
+      SSH の実効設定 (sshd -T) が要求されたハードニング設定と一致しません。
+      期待値は 'port {{ new_ssh_port }}' / 'permitrootlogin no' /
+      'passwordauthentication no' です。/etc/ssh/sshd_config.d/*.conf の
+      ドロップイン (例: cloud-init の 'PasswordAuthentication yes') が
+      /etc/ssh/sshd_config の設定を上書きしていないか確認してください。
+    success_msg: >-
+      SSH の実効設定 (sshd -T) が要求されたハードニング設定
+      (port {{ new_ssh_port }}, permitrootlogin no, passwordauthentication no)
+      と一致することを確認しました。
