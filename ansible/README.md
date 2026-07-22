@@ -22,7 +22,7 @@
    環境に合わせて変数を編集します。
    - `username`: 作成する一般ユーザー名（デフォルト: `y_ohi`）。
    - `ssh_public_key_path`: 実行元PCのSSH公開鍵のパス（デフォルト: `"~/.ssh/id_ed25519.pub"`）。この公開鍵がターゲット上の指定ユーザーの `authorized_keys` に登録されます。
-   - `github_token`: GitHub の Personal Access Token。トークンを指定すると、ターゲット上で自動生成されたSSH公開鍵を自動的に GitHub アカウントに登録します。空のままにした場合は、実行時にコンソールへ公開鍵の内容が表示されるので、手動で GitHub に登録してください。
+   - `github_token`: GitHub の Personal Access Token。`run.sh` 実行時にプロンプトで対話的に入力します（入力は隠蔽されます）。トークンは実行時に一時ファイル経由で渡され、`vars.yml` には永続保存されません。
    - `new_ssh_port`: SSH接続用に新しく設定するポート番号（デフォルト: `5310`）。
 
 ## 実行方法
@@ -52,3 +52,57 @@ ansible-playbook setup.yml -i hosts.ini
    - ポート番号を `5310` に変更
    - root ユーザーでの直接ログインを禁止 (`PermitRootLogin no`)
    - パスワード認証を禁止 (`PasswordAuthentication no`)
+
+## セットアップフロー
+
+### 物理 PC のセットアップ
+
+物理 PC は外部からの SSH 接続ができないため、ターゲット PC のコンソールでスクリプトをダウンロード、転送整合性を確認し、内容を確認してから実行します。
+
+```bash
+SCRIPT_FILE="$(mktemp)"
+HEADER_FILE="$(mktemp)"
+trap 'rm -f "${SCRIPT_FILE}" "${HEADER_FILE}"' EXIT
+
+curl -fsSL -D "${HEADER_FILE}" -o "${SCRIPT_FILE}" \
+  https://setup.yourdomain.com/install.sh
+EXPECTED_HASH="$(
+  awk -F ': ' '
+    tolower($1) == "x-script-sha256" {
+      gsub("\\r", "", $2)
+      print $2
+    }
+  ' "${HEADER_FILE}"
+)"
+ACTUAL_HASH="$(sha256sum "${SCRIPT_FILE}" | awk '{print $1}')"
+
+if [ -z "${EXPECTED_HASH}" ] || [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
+  echo "ERROR: install.sh SHA-256 verification failed" >&2
+  exit 1
+fi
+
+less "${SCRIPT_FILE}"
+read -r -p "内容を確認しました。実行しますか？ [y/N] " CONFIRM
+[ "${CONFIRM}" = "y" ] || [ "${CONFIRM}" = "Y" ] || exit 0
+/bin/bash "${SCRIPT_FILE}"
+```
+
+`X-Script-SHA256` は同じ Workers レスポンスから取得するため、上記の比較は転送中の破損検出に限られます。侵害された Workers を検出するには、別経路で信頼した固定ハッシュまたは署名が必要であり、このフローの範囲外です。
+
+その後、操作 PC で以下を実行します。
+
+```bash
+cd ansible
+./run.sh
+# プロンプトで bootstrap.yml を選択
+```
+
+### VPS のセットアップ
+
+VPS はターゲット PC のコンソールに入らず、操作 PC から全て実行します。
+
+```bash
+cd ansible
+./run.sh
+# プロンプトで setup.yml を選択
+```
