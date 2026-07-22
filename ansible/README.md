@@ -97,6 +97,8 @@ cd ansible
 # プロンプトで bootstrap.yml を選択
 ```
 
+> **物理 PC の初期接続ユーザーに関する注意**: `scripts/bootstrap.sh` の実行により root ログインは既に無効化されており、ポート `22` では操作 PC の GitHub 公開鍵（`github.com/yohi.keys`）で認可された `y_ohi` のみが接続できます。そのため `run.sh` の「初期接続用の SSH ユーザー」の入力では `root` ではなく `y_ohi` を、ポートには `22` を指定してください（`root` はこの時点で無効化されています）。
+
 ### VPS のセットアップ
 
 VPS はターゲット PC のコンソールに入らず、操作 PC から全て実行します。
