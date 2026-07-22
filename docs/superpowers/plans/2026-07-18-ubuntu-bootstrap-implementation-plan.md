@@ -113,6 +113,9 @@ managed_block_keys() {
 }
 
 # 準備: 手動保守鍵を含む既存 authorized_keys を用意
+# 注: 以下は root 権限で実行される。Dockerfile に USER ディレクティブはなく、
+# y_ohi はまだ作成されていない。/home/y_ohi/.ssh と authorized_keys は
+# -o y_ohi -g y_ohi を指定せずに準備され、bootstrap.sh が後で所有権を設定する。
 install -d -m 700 /home/y_ohi/.ssh
 printf '%s\n' "${MANUAL_KEY}" > "${AUTH}"
 chmod 600 "${AUTH}"
@@ -151,6 +154,11 @@ fi
 grep -qxF "${MANUAL_KEY}" "${AUTH}"
 
 # 4回目（不完全な管理ブロック）: authorized_keys を一切変更しない
+# 終了マーカーがない管理ブロックは、awk が失敗して exit 1 を返す。
+# render_authorized_keys の出力は TMP_AUTH にリダイレクトされるが、
+# awk が unterminated block を検出して exit 1 を返すため、
+# set -euo pipefail により render_authorized_keys コマンド全体が失敗。
+# その結果、mv は実行されず、既存の authorized_keys（手動保守鍵を含む）は変更されない。
 printf '%s\n' "${MANUAL_KEY}" "${BEGIN_MARKER}" "${MANUAL_KEY}" > "${AUTH}"
 BEFORE="$(cat "${AUTH}")"
 printf '%s\n' "${KEY2}" > /tmp/testkeys/github_keys
@@ -159,6 +167,7 @@ if bash /tmp/bootstrap.sh; then
     exit 1
 fi
 [ "${BEFORE}" = "$(cat "${AUTH}")" ]
+grep -qxF "${MANUAL_KEY}" "${AUTH}"
 
 # 5回目（空応答）: authorized_keys を一切変更しない
 BEFORE="$(cat "${AUTH}")"
@@ -263,6 +272,12 @@ render_authorized_keys() {
     printf '%s\n' "${managed_keys}"
     printf '%s\n' "${AUTHORIZED_KEYS_END}"
 }
+# 不完全な管理ブロック（終了マーカーなし）の場合、awk は失敗する。
+# render_authorized_keys の出力は TMP_AUTH にリダイレクトされるが、
+# awk が unterminated block を検出して exit 1 を返すため、
+# set -euo pipefail により render_authorized_keys コマンド全体が失敗。
+# その結果、mv は実行されず、既存の authorized_keys（手動保守鍵を含む）は変更されない。
+# EXIT trap により、TMP_AUTH は削除される。
 
 mkdir -p "${SSH_DIR}"
 
