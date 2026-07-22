@@ -113,9 +113,8 @@ managed_block_keys() {
 }
 
 # 準備: 手動保守鍵を含む既存 authorized_keys を用意
-install -d -m 700 -o y_ohi -g y_ohi /home/y_ohi/.ssh
+install -d -m 700 /home/y_ohi/.ssh
 printf '%s\n' "${MANUAL_KEY}" > "${AUTH}"
-chown y_ohi:y_ohi "${AUTH}"
 chmod 600 "${AUTH}"
 
 # 1回目: GitHub 鍵 = KEY1
@@ -151,7 +150,17 @@ if managed_block_keys | grep -qxF "${KEY1}"; then
 fi
 grep -qxF "${MANUAL_KEY}" "${AUTH}"
 
-# 4回目（空応答）: authorized_keys を一切変更しない
+# 4回目（不完全な管理ブロック）: authorized_keys を一切変更しない
+printf '%s\n' "${MANUAL_KEY}" "${BEGIN_MARKER}" "${MANUAL_KEY}" > "${AUTH}"
+BEFORE="$(cat "${AUTH}")"
+printf '%s\n' "${KEY2}" > /tmp/testkeys/github_keys
+if bash /tmp/bootstrap.sh; then
+    echo "ERROR: 不完全な管理ブロックで成功終了（期待: 失敗終了）" >&2
+    exit 1
+fi
+[ "${BEFORE}" = "$(cat "${AUTH}")" ]
+
+# 5回目（空応答）: authorized_keys を一切変更しない
 BEFORE="$(cat "${AUTH}")"
 : > /tmp/testkeys/github_keys
 if bash /tmp/bootstrap.sh; then
@@ -230,19 +239,25 @@ AUTHORIZED_KEYS_END="# <<< dotfiles-bootstrap managed keys <<<"
 strip_managed_block() {
     local file="$1"
     [ -f "${file}" ] || return 0
-    awk -v b="${AUTHORIZED_KEYS_BEGIN}" -v e="${AUTHORIZED_KEYS_END}" '
-        $0 == b { inblk = 1; next }
-        inblk && $0 == e { inblk = 0; next }
-        inblk { next }
-        { print }
-    ' "${file}"
+    if ! awk -v b="${AUTHORIZED_KEYS_BEGIN}" -v e="${AUTHORIZED_KEYS_END}" '
+            $0 == b { inblk = 1; next }
+            inblk && $0 == e { inblk = 0; next }
+            inblk { next }
+            { print }
+            END { if (inblk) exit 1 }
+        ' "${file}"; then
+        echo "ERROR: authorized_keys の管理ブロックが閉じられていません" >&2
+        return 1
+    fi
 }
 
 render_authorized_keys() {
     local file="$1"
     local managed_keys="$2"
     if [ -f "${file}" ]; then
-        strip_managed_block "${file}"
+        if ! strip_managed_block "${file}"; then
+            return 1
+        fi
     fi
     printf '%s\n' "${AUTHORIZED_KEYS_BEGIN}"
     printf '%s\n' "${managed_keys}"
