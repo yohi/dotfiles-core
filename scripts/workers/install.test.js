@@ -1,8 +1,11 @@
 // scripts/workers/install.test.js
 import test from "node:test";
 import assert from "node:assert";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createFetchMock, Miniflare } from "miniflare";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtureScript = "#!/bin/bash\n# dotfiles-bootstrap\necho bootstrap\n";
 function createWorker(status = 200, body = fixtureScript) {
   const fetchMock = createFetchMock();
@@ -17,7 +20,7 @@ function createWorker(status = 200, body = fixtureScript) {
 
   return new Miniflare({
     modules: true,
-    scriptPath: "./scripts/workers/install.js",
+    scriptPath: path.join(__dirname, "install.js"),
     compatibilityDate: "2025-01-01",
     fetchMock,
     bindings: {
@@ -30,14 +33,16 @@ function createWorker(status = 200, body = fixtureScript) {
   });
 }
 
-test("returns 404 for unknown paths", async () => {
+test("returns 404 for unknown paths", async (t) => {
   const mf = createWorker();
+  t.after(() => mf.dispose());
   const res = await mf.dispatchFetch("https://example.com/");
   assert.strictEqual(res.status, 404);
 });
 
-test("returns 200 with sha256 header for install.sh", async () => {
+test("returns 200 with sha256 header for install.sh", async (t) => {
   const mf = createWorker();
+  t.after(() => mf.dispose());
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 200);
   assert.strictEqual(
@@ -48,14 +53,16 @@ test("returns 200 with sha256 header for install.sh", async () => {
   assert.strictEqual(body, fixtureScript);
 });
 
-test("returns 503 when GitHub cannot provide the script", async () => {
+test("returns 503 when GitHub cannot provide the script", async (t) => {
   const mf = createWorker(502, "upstream failure");
+  t.after(() => mf.dispose());
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 503);
 });
 
-test("returns 500 when the script fails integrity validation", async () => {
+test("returns 500 when the script fails integrity validation", async (t) => {
   const mf = createWorker(200, "echo invalid");
+  t.after(() => mf.dispose());
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 500);
 });
