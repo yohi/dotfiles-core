@@ -9,7 +9,7 @@ npm test
 ```
 
 - `npm test` は `scripts/workers/` で実行する (`npm --prefix scripts/workers test` でリポジトリルートからも実行可)。
-- テストのスクリプトパスは `import.meta.url` 基準で解決するため実行時の cwd に依存せず、`node install.test.js` を `scripts/workers/` からでもリポジトリルートからでも実行できる。
+- テストのスクリプトパスは `import.meta.url` 基準で解決するため実行時の cwd に依存しない。ただし Node に渡すエントリファイルパス自体は cwd 相対解決のため、`node install.test.js` は `scripts/workers/` から、`node scripts/workers/install.test.js` はリポジトリルートから実行する。
 - 各テストは Miniflare インスタンスを `dispose()` するため、プロセスは数秒で自然終了する (`timeout` ラッパー不要)。
 
 ## 設定
