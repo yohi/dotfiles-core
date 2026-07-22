@@ -123,7 +123,10 @@ dotfiles-core/
 5. **SSH 公開鍵の取得と登録**
    - `https://github.com/yohi.keys` から SSH 公開鍵を取得する。
    - 取得に失敗した場合、または内容が空の場合はエラー終了する。
-   - 取得した内容を `/home/y_ohi/.ssh/authorized_keys` に書き込む。
+   - 取得した鍵は、`/home/y_ohi/.ssh/authorized_keys` 内の
+     `dotfiles-bootstrap` 管理ブロックだけを置き換えて登録する。
+   - 管理ブロックの外側にある既存鍵（保守用に手動追加した鍵など）は保持する。
+   - 既存ファイルを同一ディレクトリの一時ファイルへ書き出し、`mv` で原子的に置換する。
    - ディレクトリ・ファイルの権限を適切に設定する。
      - `~/.ssh` : `700`
      - `~/.ssh/authorized_keys` : `600`
@@ -157,6 +160,7 @@ dotfiles-core/
   あることを検証する。
 - 鍵形式の検証は、侵害された GitHub アカウントから返る形式上正しい鍵の真正性を保証するものではない。
 - スクリプトは idempotent（冪等）に記述し、同じコマンドを複数回実行しても安全にする。
+  `authorized_keys` は管理ブロックだけを更新し、ブロック外の手動鍵を保持する。
 - root ログイン禁止・パスワード認証無効化を実施するため、ブートストラップ実行後はコンソール以外で root に入れなくなることをユーザーに通知する。
 
 ### 2. Cloudflare Workers 配信スクリプト `scripts/workers/install.js`
@@ -338,7 +342,8 @@ dotfiles-core/
 
 - root ログインを禁止する。
 - パスワード認証を無効化する。
-- GitHub から取得した公開鍵のみを `authorized_keys` に登録する。
+- `authorized_keys` の `dotfiles-bootstrap` 管理ブロックには GitHub から取得した公開鍵のみを登録する。
+  管理ブロック外の既存鍵（手動追加した保守用鍵など）は再実行時も保持する。
 - 取得失敗時は即座にエラー終了する。
 
 ### Ansible レイヤー
@@ -360,6 +365,8 @@ dotfiles-core/
 
 - 各コマンドの失敗は `set -euo pipefail` で検知する。
 - GitHub 鍵取得失敗、ユーザー作成失敗、SSH 再起動失敗時は即座に終了し、原因を表示する。
+- GitHub 鍵の取得・形式検証が完了する前には `authorized_keys` を変更しない。取得失敗、空応答、形式不正時は既存内容を保持する。
+- `authorized_keys` の更新は一時ファイルへの書き込み後に `mv` で行い、書き込み途中の内容を公開しない。
 - root ログイン禁止後に SSH 接続ができなくなることを防ぐため、設定前に `sshd -t` で設定検証を行う。
 
 ### Cloudflare Workers

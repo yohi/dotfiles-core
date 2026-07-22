@@ -77,12 +77,12 @@ RUN apt-get update && \
 # テスト用の SSH 鍵と、GitHub の鍵取得を模倣するローカル fixture を用意
 RUN mkdir -p /tmp/testkeys && \
     ssh-keygen -t ed25519 -f /tmp/testkeys/id_ed25519 -N "" -q && \
-    cp /tmp/testkeys/id_ed25519.pub /tmp/testkeys/authorized_keys && \
+    ssh-keygen -t ed25519 -f /tmp/testkeys/id_ed25519_rotated -N "" -q && \
     mkdir -p /tmp/testbin && \
     printf '%s\n' \
       '#!/bin/sh' \
-      'cat /tmp/testkeys/authorized_keys' > /tmp/testbin/curl && \
-    chmod 0755 /tmp/testbin/curl
+      'cat /tmp/testkeys/github_keys' > /tmp/testbin/curl && \
+      chmod 0755 /tmp/testbin/curl
 
 # bootstrap.sh が外部 GitHub ではなく fixture を取得するようにする
 ENV PATH="/tmp/testbin:${PATH}"
@@ -90,7 +90,8 @@ ENV PATH="/tmp/testbin:${PATH}"
 COPY scripts/bootstrap.sh /tmp/bootstrap.sh
 COPY tests/bootstrap/test_bootstrap.sh /tmp/test_bootstrap.sh
 
-CMD ["/bin/bash", "-c", "bash /tmp/bootstrap.sh && bash /tmp/test_bootstrap.sh"]
+# テストが bootstrap.sh を複数回・異なる応答で駆動する
+CMD ["/bin/bash", "-c", "bash /tmp/test_bootstrap.sh"]
 ```
 
 - [ ] **Step 2: ブートストラップテストスクリプトを作成**
@@ -99,27 +100,67 @@ CMD ["/bin/bash", "-c", "bash /tmp/bootstrap.sh && bash /tmp/test_bootstrap.sh"]
 #!/bin/bash
 set -euo pipefail
 
-# ユーザーが存在すること
+BEGIN_MARKER="# >>> dotfiles-bootstrap managed keys (github.com/yohi.keys) >>>"
+END_MARKER="# <<< dotfiles-bootstrap managed keys <<<"
+AUTH="/home/y_ohi/.ssh/authorized_keys"
+KEY1="$(cat /tmp/testkeys/id_ed25519.pub)"
+KEY2="$(cat /tmp/testkeys/id_ed25519_rotated.pub)"
+MANUAL_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMAINTENANCEKEYEXAMPLEONLY maintenance@ops"
+
+managed_block_keys() {
+    awk -v b="${BEGIN_MARKER}" -v e="${END_MARKER}" \
+      '$0==b{inblk=1;next} $0==e{inblk=0;next} inblk{print}' "${AUTH}"
+}
+
+# 準備: 手動保守鍵を含む既存 authorized_keys を用意
+install -d -m 700 -o y_ohi -g y_ohi /home/y_ohi/.ssh
+printf '%s\n' "${MANUAL_KEY}" > "${AUTH}"
+chown y_ohi:y_ohi "${AUTH}"
+chmod 600 "${AUTH}"
+
+# 1回目: GitHub 鍵 = KEY1
+printf '%s\n' "${KEY1}" > /tmp/testkeys/github_keys
+bash /tmp/bootstrap.sh
+
 id y_ohi
-
-# sudo グループに所属
 groups y_ohi | grep -q sudo
-
-# sudoers ファイルが存在し、visudo 検証済み
 [ -f /etc/sudoers.d/y_ohi ]
 /usr/sbin/visudo -cf /etc/sudoers.d/y_ohi
+sshd -T | grep -qx 'permitrootlogin no'
+sshd -T | grep -qx 'passwordauthentication no'
+sshd -T | grep -qx 'pubkeyauthentication yes'
 
-# authorized_keys が fixture の公開鍵と完全一致する
-[ -f /home/y_ohi/.ssh/authorized_keys ]
-EXPECTED_SSH_PUBLIC_KEY="$(cat /tmp/testkeys/id_ed25519.pub)"
-test "$(cat /home/y_ohi/.ssh/authorized_keys)" = "${EXPECTED_SSH_PUBLIC_KEY}"
+grep -qxF "${MANUAL_KEY}" "${AUTH}"
+managed_block_keys | grep -qxF "${KEY1}"
+[ "$(grep -cxF "${BEGIN_MARKER}" "${AUTH}")" -eq 1 ]
+[ "$(grep -cxF "${END_MARKER}" "${AUTH}")" -eq 1 ]
 
-# SSH 設定が正しく変更されている
-sshd -T | grep -q "permitrootlogin no"
-sshd -T | grep -q "passwordauthentication no"
-sshd -T | grep -q "pubkeyauthentication yes"
+# 2回目（冪等性）: 変更なし
+bash /tmp/bootstrap.sh
+[ "$(grep -cxF "${KEY1}" "${AUTH}")" -eq 1 ]
+[ "$(grep -cxF "${MANUAL_KEY}" "${AUTH}")" -eq 1 ]
+[ "$(grep -cxF "${BEGIN_MARKER}" "${AUTH}")" -eq 1 ]
 
-echo "=== Bootstrap test passed ==="
+# 3回目（鍵ローテーション）: KEY2
+printf '%s\n' "${KEY2}" > /tmp/testkeys/github_keys
+bash /tmp/bootstrap.sh
+managed_block_keys | grep -qxF "${KEY2}"
+if managed_block_keys | grep -qxF "${KEY1}"; then
+    echo "ERROR: 旧管理鍵が残存" >&2
+    exit 1
+fi
+grep -qxF "${MANUAL_KEY}" "${AUTH}"
+
+# 4回目（空応答）: authorized_keys を一切変更しない
+BEFORE="$(cat "${AUTH}")"
+: > /tmp/testkeys/github_keys
+if bash /tmp/bootstrap.sh; then
+    echo "ERROR: 空応答で成功終了（期待: 失敗終了）" >&2
+    exit 1
+fi
+[ "${BEFORE}" = "$(cat "${AUTH}")" ]
+
+echo "=== Bootstrap authorized_keys merge test passed ==="
 ```
 
 - [ ] **Step 3: ブートストラップスクリプトを作成**
@@ -183,8 +224,40 @@ ${PUBKEYS}
 EOF
 
 SSH_DIR="/home/${USERNAME}/.ssh"
+AUTHORIZED_KEYS_BEGIN="# >>> dotfiles-bootstrap managed keys (github.com/yohi.keys) >>>"
+AUTHORIZED_KEYS_END="# <<< dotfiles-bootstrap managed keys <<<"
+
+strip_managed_block() {
+    local file="$1"
+    [ -f "${file}" ] || return 0
+    awk -v b="${AUTHORIZED_KEYS_BEGIN}" -v e="${AUTHORIZED_KEYS_END}" '
+        $0 == b { inblk = 1; next }
+        inblk && $0 == e { inblk = 0; next }
+        inblk { next }
+        { print }
+    ' "${file}"
+}
+
+render_authorized_keys() {
+    local file="$1"
+    local managed_keys="$2"
+    if [ -f "${file}" ]; then
+        strip_managed_block "${file}"
+    fi
+    printf '%s\n' "${AUTHORIZED_KEYS_BEGIN}"
+    printf '%s\n' "${managed_keys}"
+    printf '%s\n' "${AUTHORIZED_KEYS_END}"
+}
+
 mkdir -p "${SSH_DIR}"
-printf '%s\n' "${PUBKEYS}" > "${SSH_DIR}/authorized_keys"
+
+TMP_AUTH="$(mktemp "${SSH_DIR}/.authorized_keys.XXXXXX")"
+trap 'rm -f "${TMP_AUTH}"' EXIT
+render_authorized_keys "${SSH_DIR}/authorized_keys" "${PUBKEYS}" > "${TMP_AUTH}"
+chmod 600 "${TMP_AUTH}"
+mv -f "${TMP_AUTH}" "${SSH_DIR}/authorized_keys"
+trap - EXIT
+
 chmod 700 "${SSH_DIR}"
 chmod 600 "${SSH_DIR}/authorized_keys"
 chown -R "${USERNAME}:${USERNAME}" "${SSH_DIR}"
