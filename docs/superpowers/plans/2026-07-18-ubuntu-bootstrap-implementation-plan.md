@@ -249,13 +249,13 @@ strip_managed_block() {
     local file="$1"
     [ -f "${file}" ] || return 0
     if ! awk -v b="${AUTHORIZED_KEYS_BEGIN}" -v e="${AUTHORIZED_KEYS_END}" '
-            $0 == b { inblk = 1; next }
-            inblk && $0 == e { inblk = 0; next }
+            $0 == b { if (inblk) exit 1; inblk = 1; next }
+            $0 == e { if (!inblk) exit 1; inblk = 0; next }
             inblk { next }
             { print }
             END { if (inblk) exit 1 }
         ' "${file}"; then
-        echo "ERROR: authorized_keys の管理ブロックが閉じられていません" >&2
+        echo "ERROR: authorized_keys の管理ブロックが不完全です" >&2
         return 1
     fi
 }
