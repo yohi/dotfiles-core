@@ -1,12 +1,13 @@
 ---
-- name: Initial Server Setup
+# ansible/setup.yml
+- name: VPS Initial Server Setup
   hosts: servers
   become: true
   vars_files:
     - vars.yml
 
-  tasks:
-    - name: Ensure y_ohi user exists
+  pre_tasks:
+    - name: Ensure target user exists
       ansible.builtin.user:
         name: "{{ username }}"
         shell: /bin/bash
@@ -17,7 +18,7 @@
         ssh_key_file: .ssh/id_ed25519
         state: present
 
-    - name: Configure passwordless sudo for y_ohi
+    - name: Configure passwordless sudo for target user
       ansible.builtin.copy:
         content: "{{ username }} ALL=(ALL) NOPASSWD:ALL\n"
         dest: "/etc/sudoers.d/{{ username }}"
@@ -26,11 +27,11 @@
         mode: "0440"
         validate: /usr/sbin/visudo -cf %s
 
-    - name: Authorize local SSH public key for y_ohi
-      ansible.posix.authorized_key:
-        user: "{{ username }}"
-        state: present
-        key: "{{ lookup('ansible.builtin.file', ssh_public_key_path) }}"
+    - name: Fix bad configuration option PermitRootLogin in client ssh_config
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/ssh_config
+        regexp: '(?i)^[#\s]*permitrootlogin'
+        state: absent
 
     - name: Read generated SSH public key
       ansible.builtin.slurp:
@@ -48,20 +49,33 @@
           GitHubから dotfiles をクローンするため、以下の公開鍵を
           GitHubリポジトリの Deploy Key に登録してください。
 
-          【登録手順】
-          1. ブラウザで以下のURLを開きます：
-             https://github.com/yohi/dotfiles-core/settings/keys
-          2. 'Add deploy key' をクリックします。
-          3. Titleに任意の名前（例: 'VPS-Target-Key'）を入力します。
-          4. Keyの部分に以下の公開鍵を貼り付けます：
-
           {{ ssh_pub_key }}
 
-          5. 'Add key' をクリックして保存します。
+          登録先URL: https://github.com/yohi/dotfiles-core/settings/keys
           ===========================================================
       when: github_token | default('') | length == 0
 
-    - name: Automatically register SSH public key as GitHub Deploy Key
+    - name: Retrieve existing GitHub Deploy Keys
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
+        method: GET
+        headers:
+          Authorization: "token {{ github_token }}"
+          Accept: "application/vnd.github+json"
+          X-GitHub-Api-Version: "2022-11-28"
+        status_code: [200]
+        return_content: true
+      register: existing_deploy_keys
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Identify an existing matching GitHub Deploy Key
+      ansible.builtin.set_fact:
+        matching_deploy_keys: "{{ existing_deploy_keys.json | selectattr('key', 'equalto', ssh_pub_key) | list }}"
+      no_log: true
+      when: github_token | default('') | length > 0
+
+    - name: Register SSH public key as GitHub Deploy Key when absent
       ansible.builtin.uri:
         url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
         method: POST
@@ -75,96 +89,22 @@
           key: "{{ ssh_pub_key }}"
           read_only: true
         status_code: [201]
-      when: github_token | default('') | length > 0
+      no_log: true
+      when:
+        - github_token | default('') | length > 0
+        - matching_deploy_keys | length == 0
 
     - name: Pause and wait for Deploy Key registration
       ansible.builtin.pause:
         prompt: "GitHubへの Deploy Key の登録が完了したら、エンターキーを押して続行してください..."
       when: github_token | default('') | length == 0
 
-    - name: Fix bad configuration option PermitRootLogin in client ssh_config
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/ssh_config
-        regexp: '(?i)^[#\s]*permitrootlogin'
-        state: absent
-
-    - name: Clone dotfiles repository
-      ansible.builtin.git:
-        repo: git@github.com:yohi/dotfiles-core.git
-        dest: "/home/{{ username }}/dotfiles"
-        accept_hostkey: true
-        version: master
-      become: true
-      become_user: "{{ username }}"
-
-    - name: Check if UFW is installed
-      ansible.builtin.command: which ufw
-      register: ufw_check
-      failed_when: false
-      changed_when: false
-
-    - name: Allow new SSH port 5310 via UFW
-      community.general.ufw:
-        rule: allow
-        port: "{{ new_ssh_port | string }}"
-        proto: tcp
-      when: ufw_check.rc == 0
-
-    - name: Check if ssh.socket is active
-      ansible.builtin.systemd:
-        name: ssh.socket
-      register: ssh_socket_status
-      failed_when: false
-
-    - name: Disable ssh.socket and enable ssh.service if socket is active
-      ansible.builtin.systemd:
-        name: "{{ item.name }}"
-        enabled: "{{ item.enabled }}"
-        state: "{{ item.state }}"
-      loop:
-        - { name: "ssh.socket", enabled: false, state: "stopped" }
-        - { name: "ssh", enabled: true, state: "started" }
-      when:
-        - ssh_socket_status.status is defined
-        - ssh_socket_status.status.ActiveState is defined
-        - ssh_socket_status.status.ActiveState == 'active'
-
-    - name: Configure SSH Daemon port
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?Port\s'
-        line: "Port {{ new_ssh_port }}"
-        state: present
-      notify: Restart SSH
-
-    - name: Disable SSH Root Login
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PermitRootLogin\s'
-        line: "PermitRootLogin no"
-        state: present
-      notify: Restart SSH
-
-    - name: Disable SSH Password Authentication
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PasswordAuthentication\s'
-        line: "PasswordAuthentication no"
-        state: present
-      notify: Restart SSH
-
-    - name: Flush handlers to restart SSH immediately
-      ansible.builtin.meta: flush_handlers
-
-    - name: Verify SSH connection on new port
-      ansible.builtin.wait_for:
-        host: "{{ ansible_host }}"
-        port: "{{ new_ssh_port }}"
-        state: started
-        delay: 2
-        timeout: 30
-      delegate_to: localhost
-      become: false
+  roles:
+    - role: common-setup
+      vars:
+        username: "{{ username }}"
+        ssh_public_key_path: "{{ ssh_public_key_path }}"
+        new_ssh_port: "{{ new_ssh_port }}"
 
   handlers:
     - name: Restart SSH
