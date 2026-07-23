@@ -21,6 +21,7 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
     8. dotfiles-ai: opencode, cursor, claude, gemini などのAIエージェント設定群
     9. dotfiles-gnome (Optional): GNOME拡張、ショートカット、dconf設定、Mozc等のOS依存GUI設定
 * **シークレット管理**: bw (Bitwarden CLI) を使用した動的取得。ローカルへの平文シークレットファイルの手動配置を廃止する。
+* **新規マシンの初期セットアップ**: まっさらな Ubuntu マシン（物理 PC / VPS）に対し、Ansible を用いて OS レベルの初期セットアップ（ユーザー作成、SSH ハードニング、dotfiles-core のクローン）を自動化する。物理 PC はブートストラップスクリプトをダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行して SSH 接続準備を行い、VPS は操作 PC から Ansible のみで完結させる。
 
 # Tech Stack
 
@@ -31,6 +32,8 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
 | **Repo Management** | vcstool | 複数リポジトリの並列一括クローン・プルをYAMLで宣言的に管理 |
 | **Symlink Manager** | Makefile内での明示的な定義 | 柔軟なパス解決と冪等性のあるリンク (`ln -sfn`) をコンポーネント単位で実現 |
 | **Secret Manager** | Bitwarden CLI (bw) | jq と組み合わせてJSONから安全に抽出 |
+| **Provisioning** | Ansible | 新規Ubuntuマシン（物理PC/VPS）の初期セットアップ（ユーザー作成、SSHハードニング、UFW設定等） |
+| **Script Distribution** | Cloudflare Workers | ブートストラップスクリプト (`scripts/bootstrap.sh`) をGitHub raw経由でHTTPS配信し、SHA-256整合性ヘッダーを付与 |
 
 # Architecture
 
@@ -96,6 +99,91 @@ sequenceDiagram
     CoreMake->>User: Setup Complete!
 ```
 
+## Ubuntu Bootstrap Flow (新規マシンの初期セットアップ)
+
+`make setup` を実行する前段階、つまり「まだ Ubuntu マシンに何もセットアップされていない」状態から SSH 接続可能な状態にするためのフロー。物理 PC と VPS で経路が異なる。
+
+ブートストラップスクリプトと Ansible の間では以下のように責務を分離する。
+
+* **`scripts/bootstrap.sh` の責務**: SSH 接続に必要な最小限の準備（ユーザー作成、公開鍵登録、SSH ハードニング）のみ。
+* **Ansible (`common-setup` ロール) の責務**: SSH ポート変更、dotfiles-core のクローン、完全なパッケージインストール、ファイアウォール設定、GitHub Deploy Key の登録。`bootstrap.sh` はこれらを一切実施しない。
+
+### Directory Structure
+
+```text
+dotfiles-core/
+├── scripts/
+│   ├── bootstrap.sh              # 物理PC用ブートストラップスクリプト (root実行, y_ohiユーザー作成/SSHハードニング)
+│   └── workers/
+│       ├── install.js            # Cloudflare Workers 配信スクリプト (GitHub raw中継 + SHA-256ヘッダー付与)
+│       ├── install.test.js       # Workers用テスト (Miniflare)
+│       └── wrangler.toml         # Workers デプロイ設定
+├── ansible/
+│   ├── setup.yml                 # VPS用プレイブック (ゼロから全セットアップ)
+│   ├── bootstrap.yml             # 物理PC用プレイブック (ブートストラップ後の本セットアップ)
+│   ├── run.sh                    # 対話式セットアップランチャー (hosts.ini/vars.yml生成)
+│   ├── hosts.ini / vars.yml      # 実行時生成されるインベントリ・変数ファイル
+│   └── roles/common-setup/       # 両プレイブック共通の本セットアップタスク
+└── tests/bootstrap/              # bootstrap.sh の Docker ベース回帰テスト
+```
+
+### Data Flow (物理PC)
+
+```mermaid
+sequenceDiagram
+    participant Console as ターゲットPCコンソール(root)
+    participant Worker as Cloudflare Workers
+    participant GitHub
+    participant Operator as 操作PC (ansible/run.sh)
+    participant Target as ターゲットPC(y_ohi)
+
+    Console->>Worker: curl https://setup.example.com/install.sh
+    Worker->>GitHub: fetch scripts/bootstrap.sh (raw)
+    GitHub-->>Worker: script content
+    Worker-->>Console: 200 OK + X-Script-SHA256 header
+    Console->>Console: SHA-256検証 → 内容確認 → /bin/bash 実行
+    Console->>Console: y_ohi作成, GitHub公開鍵取得・authorized_keys管理ブロック登録, SSHハードニング
+    Operator->>Target: ansible-playbook bootstrap.yml (SSH:22, user=y_ohi)
+    Target->>Target: Deploy Key生成 → GitHub登録 → dotfiles-coreクローン
+    Target->>Target: common-setupロール: パッケージ導入, UFW設定, SSHポート変更, 再接続確認
+```
+
+### Data Flow (VPS)
+
+```mermaid
+sequenceDiagram
+    participant Operator as 操作PC (ansible/run.sh)
+    participant Target as ターゲットPC(初期接続ユーザー)
+
+    Operator->>Target: ansible-playbook setup.yml (SSH: プロバイダー提供ユーザー)
+    Target->>Target: y_ohi作成, sudo設定, 操作PC公開鍵登録
+    Target->>Target: Deploy Key生成 → GitHub登録 → dotfiles-coreクローン
+    Target->>Target: common-setupロール: パッケージ導入, UFW設定, SSHポート変更, 再接続確認
+```
+
+### Security Design
+
+* **authorized_keys 管理ブロック**: GitHub から取得した公開鍵は `authorized_keys` 内の `dotfiles-bootstrap` 管理ブロックのみを置換し、ブロック外の手動追加鍵は再実行時も保持する。管理ブロックのマーカーが不整合な場合は既存ファイルを一切変更せずエラー終了する。一時ファイルへの書き込み後 `mv` で原子的に置換する。
+* **GitHub Token の非永続化**: `github_token` は `vars.yml` やコマンド引数に保存せず、モード `0600` の一時 JSON ファイル経由で `--extra-vars @<file>` として渡す。Ansible タスクには `no_log: true` を設定し、`trap` で一時ファイルを必ず削除する。
+* **SSH ハードニング**: `PermitRootLogin no`, `PasswordAuthentication no` を設定し、変更前後に `sshd -t` で構文検証、`sshd -T` で実効設定を確認する。
+* **配信の真正性**: Cloudflare Workers はスクリプトの先頭バイト列とマーカー文字列を検証し、SHA-256 ヘッダーで転送中の破損を検出可能にする（配信元自体の真正性保証は範囲外）。
+* **鍵検証の限界**: 公開鍵の形式検証（`ssh-keygen -l -f -` で解釈可能か）は、侵害された GitHub アカウントから返る形式上正しい鍵の真正性までは保証しない。
+* **Deploy Key の非転送**: 物理 PC 用フローでは、ターゲット上で生成した Deploy Key の秘密鍵をターゲット外へ転送・表示しない。GitHub には公開鍵のみを read-only で登録する。
+
+詳細な運用手順は [`ansible/README.md`](ansible/README.md) を参照。
+
+### Testing Strategy
+
+* `scripts/bootstrap.sh`: Docker コンテナ（`tests/bootstrap/`）上で authorized_keys マージロジックの回帰テストを行う。
+* `scripts/workers/install.js`: Miniflare を用いたユニットテスト（`install.test.js`）で正常系・GitHub取得失敗・整合性チェック失敗の3系統を検証する。
+* Ansible プレイブック: `ansible-playbook --syntax-check` で構文検証する。実機適用は検証用 VPS またはローカルVMで行う。
+
+### Out of Scope (今後の拡張)
+
+* 別経路で配布する固定チェックサムまたはスクリプト内容の署名による、配信元（Cloudflare Workers）自体の真正性検証。
+* ブートストラップ完了後の自動通知（Slack 等）。
+* 他のクラウドプロバイダー（AWS EC2, Azure VM 等）への対応。
+
 # Features & Requirements
 
 ## Must Have (必須要件)
@@ -125,6 +213,20 @@ dotfiles-core の Makefile はただのディスパッチャーに徹し、make 
 ### 2. Global DevContainer
 
 個別のコンポーネントではなく、~/dotfiles（メタ・リポジトリ全体）をマウントする .devcontainer を dotfiles-core に配置し、横断的な開発体験を維持する。
+
+## Ubuntu Bootstrap Automation (新規マシン初期セットアップ)
+
+### 1. Dual-Path Provisioning
+
+物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。物理PCはブートストラップスクリプトをダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行するフロー、VPSは操作PCからのAnsibleのみで完結させる。
+
+### 2. Idempotent authorized_keys Merge
+
+GitHub から取得した公開鍵を `authorized_keys` の管理ブロックのみ置換し、手動追加鍵を保持する冪等なマージロジックを実装する。
+
+### 3. Secretless Token Handling
+
+GitHub Personal Access Token を `vars.yml` や Ansible ログに残さず、一時ファイル経由で安全に受け渡す。
 
 # Data Structure
 

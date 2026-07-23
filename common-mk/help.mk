@@ -61,7 +61,7 @@ _print-categorized-help:
 	fi
 	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' $(_MK_DIR)/mcp.mk 2>/dev/null); \
 	if [ -n "$$targets" ]; then \
-		echo -e "\n$(H_YELLOW)$(H_BOLD)[Docker MCP Gateway]$(H_NC)"; \
+		echo -e "\n$(H_YELLOW)$(H_BOLD)[MCP (APM Direct)]$(H_NC)"; \
 		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; !seen[$$1]++ { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }' | sort; \
 	fi
 	@targets=$$(grep -Eh '^[a-zA-Z_-]+:.*?## .*$$' $(_MK_DIR)/skillport.mk 2>/dev/null); \
@@ -79,5 +79,4 @@ _print-categorized-help:
 		echo -e "\n$(H_YELLOW)$(H_BOLD)[Superpowers Workflow]$(H_NC)"; \
 		echo "$$targets" | awk 'BEGIN {FS = ":.*?## "}; !seen[$$1]++ { printf "  $(H_CYAN)%-25s$(H_NC) %s\n", $$1, $$2 }' | sort; \
 	fi
-
 

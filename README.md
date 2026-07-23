@@ -39,8 +39,9 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 ├── Makefile                    <-- メイン・ディスパッチャー
 ├── repos.yaml                  <-- vcstool用 リポジトリ定義
 ├── common-mk/                  <-- 共通Makefileマクロ (各コンポーネントへ自動注入)
+├── ansible/                    <-- 新規Ubuntuマシン（物理PC/VPS）の初期セットアップ用 Ansible プレイブック
 ├── tests/                      <-- インテグレーションテスト (Docker環境)
-├── scripts/                    <-- 管理スクリプト群
+├── scripts/                    <-- 管理スクリプト群 (bootstrap.sh, workers/ 配信スクリプト等)
 └── components/                 <-- 各リポジトリのチェックアウト先 (Ignored by Git)
     ├── dotfiles-zsh/           <-- [Repo: dotfiles-zsh]
     ├── dotfiles-vim/           <-- [Repo: dotfiles-vim]
@@ -55,6 +56,18 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 
 > [!NOTE]
 > `make init` で一部ツールが自動インストールされる場合がありますが、事前に利用可能な状態にしておくことを推奨します。
+
+## 🖥️ 新規 Ubuntu マシンの初期セットアップ
+
+まだ dotfiles-core を導入していない、まっさらな Ubuntu マシン（物理 PC / VPS）を用意する場合は、`ansible/` 配下のセットアップフローを使用します。
+
+- **物理 PC**（外部から SSH 接続できない場合）: ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）をダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行し、SSH 接続の準備（`y_ohi` ユーザー作成、GitHub 公開鍵登録、SSH ハードニング）を行います。その後、操作 PC から Ansible（`ansible/bootstrap.yml`）で本セットアップを実行します。スクリプトは Cloudflare Workers（`scripts/workers/`）経由で HTTPS 配信され、`X-Script-SHA256` ヘッダによる整合性検証が可能です（検証手順は下記 `ansible/README.md` を参照）。
+- **VPS**（外部から SSH 接続できる場合）: ターゲット PC のコンソールには入らず、操作 PC から Ansible（`ansible/setup.yml`）のみで全て実施します。
+
+両方とも、対話式ランチャー `ansible/run.sh` から実行します。詳細な手順・セキュリティ設計は [`ansible/README.md`](ansible/README.md) を参照してください。
+
+> [!NOTE]
+> このフローは「まだ Ubuntu マシンがセットアップされていない」段階を対象とします。dotfiles-core のクローンと本セットアップ（`common-setup` ロール）は Ansible が自動的に実行するため、上記フローの後に以下の Quick Start を別途実行する必要はありません。
 
 ## ⚡ Quick Start (Bootstrap)
 

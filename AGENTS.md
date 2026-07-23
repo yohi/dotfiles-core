@@ -1,225 +1,56 @@
-# PROJECT KNOWLEDGE BASE
-
-**Generated:** 2026-02-21
-**Repository:** dotfiles-core (Meta-Repository / Orchestrator)
-
-## OVERVIEW
-
-`dotfiles-core` is a **meta-repository** that orchestrates multiple independent dotfiles repositories (`dotfiles-zsh`, `dotfiles-vim`, `dotfiles-ai`, etc.). It uses the "Meta-Repository Pattern" with a "Flat Layout" to eliminate Git Submodule complexity.
-
-**Core Purpose:** One-command bootstrap for a fully modularized development environment on Ubuntu.
-
-## BUILD / LINT / TEST COMMANDS
-
-This repository has **no tests, no lint, no build**. It is purely an orchestrator.
-
-| Task | Command | Description |
-| :--- | :--- | :--- |
-| **Full Setup** | `make setup` | Install deps, sync repos, resolve secrets, link files, delegate to components |
-| **Init** | `make init` | Install `vcstool`, `jq`, `curl` and clone all repos |
-| **Sync** | `make sync` | Pull latest changes for all components via `vcstool` |
-| **Link** | `make link` | Delegate symlink creation (`ln -sfn`) to components |
-| **Secrets** | `make secrets` | Resolve credentials via Bitwarden CLI (`bw`) |
-| **Clean** | `make clean` | Remove all components (CAUTION: destructive) |
-
-### Required Tools
-
-To use this orchestrator and its components, ensure the following are installed:
-
-- **GNU Make**: Main task runner for orchestration and logic delegation
-- **Python3**: Required for `vcstool` and various internal scripts
-- **curl**: Used for initial bootstrap and downloading components
-- **jq**: Essential for processing JSON output, especially from Bitwarden CLI
-- **vcstool**: Used to manage multiple repositories defined in `repos.yaml`
-- **bw (Bitwarden CLI)**: Required for secure credential resolution via `make secrets`
-
-## DIRECTORY STRUCTURE
-
-```text
-~/dotfiles/                     <-- [dotfiles-core] (this repo)
-├── .gitignore                  <-- Excludes "components/"
-├── Makefile                    <-- Main dispatcher
-├── repos.yaml                  <-- vcstool repository manifest
-├── README.md                   <-- User documentation
-├── SPEC.md                     <-- Detailed specification
-├── GEMINI.md                   <-- Gemini CLI context
-├── scripts/                    <-- Management scripts (TBD)
-└── components/                 <-- Cloned repos (ignored by Git)
-    ├── dotfiles-zsh/           <-- [Repo: dotfiles-zsh]
-    ├── dotfiles-vim/           <-- [Repo: dotfiles-vim]
-    ├── dotfiles-git/           <-- [Repo: dotfiles-git]
-    ├── dotfiles-term/          <-- [Repo: dotfiles-term]
-    ├── dotfiles-ide/           <-- [Repo: dotfiles-ide]
-    ├── dotfiles-ai/            <-- [Repo: dotfiles-ai]
-    └── dotfiles-gnome/         <-- [Repo: dotfiles-gnome]
-```
-
-## CODE STYLE GUIDELINES
-
-### Language
-
-- **Documentation**: Japanese (日本語) for README, comments, and user-facing text
-- **AGENTS.md**: English (for AI agent consumption)
-- **Commit Messages**: Japanese (e.g., `feat: 新機能追加`, `fix: バグ修正`)
-
-### Shell Scripts (Bash)
-
-When writing shell scripts in `scripts/` or inline in Makefile:
-
-```bash
-# Path resolution: Always resolve paths dynamically
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-# Error handling: Use set -e for fail-fast behavior
-set -euo pipefail
-
-# Logging: Use echo with prefixes
-echo "==> Doing something..."
-echo "ERROR: Something failed" >&2
-
-# Idempotency: Check before creating
-mkdir -p "${TARGET_DIR}"  # -p is idempotent
-```
-
-### Makefile Conventions
-
-```makefile
-# Use .PHONY for non-file targets
-.PHONY: help init sync link secrets setup clean
-
-# Use variables for paths
-COMPONENTS_DIR := components
-STOW_TARGET := $(HOME)
-
-# Echo progress for user feedback
-init:
- @echo "==> Initializing dependencies..."
-
-# Use @for loops to delegate tasks
-link:
- @for dir in $$(find $(COMPONENTS_DIR) -maxdepth 1 -mindepth 1 -type d); do \
-  if [ -f "$$dir/Makefile" ]; then \
-   $(MAKE) -C "$$dir" link || true; \
-  fi; \
- done
-```
-
-### YAML (repos.yaml)
-
-```yaml
-repositories:
-  components/dotfiles-<name>:
-    type: git
-    url: git@github.com:yohi/dotfiles-<name>.git
-    version: master  # or main
-```
-
-## ARCHITECTURAL PRINCIPLES
-
-### 1. Idempotency (冪等性)
-
-All operations must be safe to run multiple times:
-
-- `make setup` should never break an existing environment
-- Use `mkdir -p`, `ln -sfn`, idempotent shell patterns
-
-### 2. Minimalism
-
-`dotfiles-core` should remain thin:
-
-- Orchestration logic only
-- No component-specific configuration
-- Delegate to component Makefiles
-
-### 3. Component Delegation
-
-When `make setup` runs:
-
-1. Check if `components/<name>/Makefile` exists
-2. If Makefile exists: `$(MAKE) -C "$dir" setup`
-
-### 4. No Git Submodules
-
-**NEVER** use `git submodule`. Always use `vcstool` + `repos.yaml`.
-
-### 5. Security
-
-- **NEVER** commit secrets in plaintext
-- Use Bitwarden CLI (`bw`) for credential resolution
-- `.gitignore` must exclude `.bw_session`, `*.log`, `.tmp/`
-
-### 6. Component .env Convention
-
-Components may include a `.env` file in their root directory.
-
-- **Purpose**: Local environment-specific configuration
-- **Format**: Simple shell variable assignments (e.g., `FOO=bar`)
-- **Restriction**: Should **ONLY** contain variable assignments. Avoid executing complex shell logic or commands with side effects, as these files are sourced by the orchestrator and shell initialization.
-- **Precedence**: Loaded automatically by the orchestrator `Makefile` (via `dispatch` macro) and `dotfiles-zsh` initialization.
-
-## PATH RESOLUTION PATTERN
-
-Each component's scripts must resolve paths dynamically:
-
-```bash
-# Correct: Dynamic resolution
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-
-# Wrong: Hardcoded paths
-# source ~/dotfiles/components/dotfiles-zsh/config.sh
-```
-
-## FORBIDDEN OPERATIONS
-
-If `opencode.jsonc` exists, this section applies as **AI agent runtime constraints**.
-These restrictions are not global project rules for humans: legitimate operations by developers, CI, or repository automation (for example, controlled `sudo`/`rm` usage in `Makefile`) can still be valid.
-If exceptions are allowed for agent execution, they must be explicitly declared in `opencode.jsonc`.
-
-Per `opencode.jsonc` (when present), these operations are blocked for agent execution unless explicitly allowed:
-
-- `rm` (destructive file operations)
-- `ssh` (remote access)
-- `sudo` (privilege escalation)
-
-## KEY FILES TO REFERENCE
-
-| File | Purpose |
-| :--- | :--- |
-| `Makefile` | Main entry point, all targets |
-| `repos.yaml` | Repository manifest for vcstool |
-| `SPEC.md` | Detailed specification and requirements |
-| `GEMINI.md` | Project context for Gemini CLI |
-| [ARCHITECTURE.md](https://raw.githubusercontent.com/yohi/dotfiles-core/refs/heads/master/docs/ARCHITECTURE.md) | Component directory/file structure convention (all repos must comply) |
-
-## COMMON TASKS
-
-### Adding a New Component
-
-1. Add entry to `repos.yaml`:
-
-   ```yaml
-   components/dotfiles-<name>:
-     type: git
-     url: git@github.com:yohi/dotfiles-<name>.git
-     version: master
-   ```
-
-2. Run `make sync` to clone
-3. Create `Makefile` with `setup` target in the component repo
-
-### Checking Component Status
-
-```bash
-# List all components
-ls -la components/
-
-# Check git status of all components
-vcs status components/
-```
-
-## TARGET ENVIRONMENT
-
-- **OS**: Ubuntu 22.04 / 24.04 LTS
-- **Shell**: Bash / Zsh
-- **Required Tools**: GNU Make, Python3, curl, jq, vcstool, bw (Bitwarden CLI)
+# AGENTS.md
+
+## What
+
+`dotfiles-core` is the orchestrator (meta-repository) for a Polyrepo dotfiles setup
+targeting Ubuntu. It coordinates independent component repos (`dotfiles-zsh`,
+`dotfiles-vim`, `dotfiles-ai`, `dotfiles-git`, `dotfiles-term`, `dotfiles-ide`,
+`dotfiles-gnome`, `dotfiles-system`) checked out flat under `components/` — no Git
+submodules, ever.
+
+## Why
+
+Goal: one command (`make setup`) takes a machine from zero to a fully configured Ubuntu
+dev environment — clone all component repos, resolve secrets, symlink dotfiles, and
+delegate setup to each component's own `Makefile`.
+
+## How to work here
+
+- This repo itself has **no app code, app-specific unit tests, lint, or build** — it's pure orchestration.
+  `make test` runs a Docker-based integration smoke test of the whole flow (`tests/`).
+- Repos live in `repos.yaml` and sync via `vcstool` (`make init` / `make sync`). Never
+  hand-roll a `git clone` loop and never use `git submodule` — see
+  `docs/agent/PROJECT_CONVENTIONS.md` for why.
+- Secrets flow through Bitwarden CLI (`bw`) via `make secrets`; never commit plaintext
+  credentials.
+- Run `make help` for the full target list (`init`, `sync`, `status`, `diff`, `link`,
+  `secrets`, `setup`, `test`, `clean`).
+- Writing/editing a script or Makefile target? Read `docs/agent/SHELL_CONVENTIONS.md` first.
+- Component-specific conventions belong in each `components/<name>/AGENTS.md`, not here —
+  `docs/ARCHITECTURE.md` defines the layout every `dotfiles-*` repo must follow.
+- Provisioning a brand-new Ubuntu machine (physical PC / VPS) that doesn't have
+  `dotfiles-core` yet is a separate flow, not `make setup` — see `ansible/README.md`.
+
+## Language policy
+
+- User-facing docs / comments: Japanese
+- `AGENTS.md` files (this one included): English
+- Commit messages: Japanese Conventional Commits (e.g. `feat: 新機能追加`)
+
+## Agent runtime constraints
+
+When `opencode.jsonc` is present, these operations are blocked for agent execution unless
+explicitly allowed there: `rm`, `ssh`, `sudo`. (Not a rule for humans/CI — see
+`opencode.jsonc` for the authoritative exception list.)
+
+## Reference docs (read only when relevant to your task)
+
+| Doc | Read it when... |
+| --- | --- |
+| `SPEC.md` | You need the full spec, architecture, or data-flow diagrams |
+| `docs/ARCHITECTURE.md` | Creating or restructuring a `dotfiles-*` component |
+| `docs/agent/SHELL_CONVENTIONS.md` | Writing/editing a shell script or Makefile |
+| `docs/agent/COMMON_TASKS.md` | Adding a component, checking component status |
+| `docs/agent/PROJECT_CONVENTIONS.md` | Rationale behind idempotency / delegation / security rules |
+| `ansible/README.md` | New-machine Ubuntu bootstrap (physical PC / VPS) |
+| `scripts/workers/README.md` | Cloudflare Workers bootstrap-script distribution config |
