@@ -16,8 +16,8 @@ delegate setup to each component's own `Makefile`.
 
 ## How to work here
 
-- This repo itself has **no app code, no tests, no lint/build** — it's pure orchestration.
-  `make test` runs a Docker-based smoke test of the whole flow (`tests/`).
+- This repo itself has **no app code, app-specific unit tests, lint, or build** — it's pure orchestration.
+  `make test` runs a Docker-based integration smoke test of the whole flow (`tests/`).
 - Repos live in `repos.yaml` and sync via `vcstool` (`make init` / `make sync`). Never
   hand-roll a `git clone` loop and never use `git submodule` — see
   `docs/agent/PROJECT_CONVENTIONS.md` for why.
