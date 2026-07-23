@@ -21,7 +21,7 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
     8. dotfiles-ai: opencode, cursor, claude, gemini などのAIエージェント設定群
     9. dotfiles-gnome (Optional): GNOME拡張、ショートカット、dconf設定、Mozc等のOS依存GUI設定
 * **シークレット管理**: bw (Bitwarden CLI) を使用した動的取得。ローカルへの平文シークレットファイルの手動配置を廃止する。
-* **新規マシンの初期セットアップ**: まっさらな Ubuntu マシン（物理 PC / VPS）に対し、Ansible を用いて OS レベルの初期セットアップ（ユーザー作成、SSH ハードニング、dotfiles-core のクローン）を自動化する。物理 PC は `curl | bash` によるブートストラップスクリプトで SSH 接続準備を行い、VPS は操作 PC から Ansible のみで完結させる。
+* **新規マシンの初期セットアップ**: まっさらな Ubuntu マシン（物理 PC / VPS）に対し、Ansible を用いて OS レベルの初期セットアップ（ユーザー作成、SSH ハードニング、dotfiles-core のクローン）を自動化する。物理 PC はブートストラップスクリプトをダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行して SSH 接続準備を行い、VPS は操作 PC から Ansible のみで完結させる。
 
 # Tech Stack
 
@@ -218,7 +218,7 @@ dotfiles-core の Makefile はただのディスパッチャーに徹し、make 
 
 ### 1. Dual-Path Provisioning
 
-物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。物理PCは `curl | bash` ブートストラップ、VPSは操作PCからのAnsibleのみで完結させる。
+物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。物理PCはブートストラップスクリプトをダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行するフロー、VPSは操作PCからのAnsibleのみで完結させる。
 
 ### 2. Idempotent authorized_keys Merge
 
