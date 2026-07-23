@@ -1,6 +1,6 @@
 ---
-# ansible/setup.yml
-- name: VPS Initial Server Setup
+# ansible/bootstrap.yml
+- name: Physical PC Bootstrap Follow-up Setup
   hosts: servers
   become: true
   vars_files:
@@ -10,50 +10,31 @@
     - name: Ensure target user exists
       ansible.builtin.user:
         name: "{{ username }}"
-        shell: /bin/bash
-        groups: sudo
-        append: true
+        state: present
+
+    - name: Ensure operator SSH public key is authorized
+      ansible.posix.authorized_key:
+        user: "{{ username }}"
+        state: present
+        key: "{{ lookup('ansible.builtin.file', ssh_public_key_path) }}"
+
+    # The private key remains on the target; only its public half is registered with GitHub.
+    - name: Ensure target Deploy Key exists
+      ansible.builtin.user:
+        name: "{{ username }}"
         generate_ssh_key: true
         ssh_key_type: ed25519
         ssh_key_file: .ssh/id_ed25519
         state: present
 
-    - name: Configure passwordless sudo for target user
-      ansible.builtin.copy:
-        content: "{{ username }} ALL=(ALL) NOPASSWD:ALL\n"
-        dest: "/etc/sudoers.d/{{ username }}"
-        owner: root
-        group: root
-        mode: "0440"
-        validate: /usr/sbin/visudo -cf %s
-
-    - name: Fix bad configuration option PermitRootLogin in client ssh_config
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/ssh_config
-        regexp: '(?i)^[#\s]*permitrootlogin'
-        state: absent
-
-    - name: Read generated SSH public key
+    - name: Read target Deploy Key public key
       ansible.builtin.slurp:
         src: "/home/{{ username }}/.ssh/id_ed25519.pub"
       register: ssh_pub_key_base64
 
-    - name: Set SSH public key fact
+    - name: Set Deploy Key public key fact
       ansible.builtin.set_fact:
         ssh_pub_key: "{{ ssh_pub_key_base64['content'] | b64decode | trim }}"
-
-    - name: Display SSH public key for GitHub Deploy Key
-      ansible.builtin.debug:
-        msg: |
-          ===========================================================
-          GitHubから dotfiles をクローンするため、以下の公開鍵を
-          GitHubリポジトリの Deploy Key に登録してください。
-
-          {{ ssh_pub_key }}
-
-          登録先URL: https://github.com/yohi/dotfiles-core/settings/keys
-          ===========================================================
-      when: github_token | default('') | length == 0
 
     - name: Retrieve existing GitHub Deploy Keys
       ansible.builtin.uri:
@@ -75,7 +56,7 @@
       no_log: true
       when: github_token | default('') | length > 0
 
-    - name: Register SSH public key as GitHub Deploy Key when absent
+    - name: Register target public key as GitHub Deploy Key when absent
       ansible.builtin.uri:
         url: "https://api.github.com/repos/yohi/dotfiles-core/keys"
         method: POST
@@ -85,7 +66,7 @@
           X-GitHub-Api-Version: "2022-11-28"
         body_format: json
         body:
-          title: "VPS-Target-Key"
+          title: "Physical-PC-Target-Key"
           key: "{{ ssh_pub_key }}"
           read_only: true
         status_code: [201]
@@ -94,9 +75,14 @@
         - github_token | default('') | length > 0
         - matching_deploy_keys | length == 0
 
-    - name: Pause and wait for Deploy Key registration
+    - name: Display target public key for manual Deploy Key registration
+      ansible.builtin.debug:
+        msg: "Register this public key as a read-only Deploy Key: {{ ssh_pub_key }}"
+      when: github_token | default('') | length == 0
+
+    - name: Pause for manual Deploy Key registration
       ansible.builtin.pause:
-        prompt: "GitHubへの Deploy Key の登録が完了したら、エンターキーを押して続行してください..."
+        prompt: "GitHub Deploy Key の登録後にエンターキーを押してください..."
       when: github_token | default('') | length == 0
 
   roles:

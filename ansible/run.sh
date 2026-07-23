@@ -41,6 +41,8 @@ normalize_path() {
     result="$(echo "$path" | sed -E -e 's|//*|/|g' -e 's|/\./|/|g')"
     while echo "$result" | grep -q '/\.\./'; do
         local new_result
+        # パスセグメント単位の正規表現置換のため ${var//search/replace} では代替できない
+        # shellcheck disable=SC2001
         new_result="$(echo "$result" | sed 's|/[^/][^/]*/\.\./|/|')"
         if [[ "$new_result" == "$result" ]]; then
             break
@@ -52,6 +54,54 @@ normalize_path() {
     echo "$result"
 }
 
+# --- GitHub Token を安全に受け渡すための一時ファイル管理 ---
+# トークンは vars.yml へ永続保存せず、モード 0600 の一時 JSON ファイルへ書き出し、
+# ansible-playbook へは --extra-vars "@<file>" で渡す。これによりトークン値が
+# プロセス引数 (ps 等で参照可能) や永続ファイルに残らないようにする。
+GITHUB_TOKEN_FILE=""
+EXTRA_VARS_ARGS=()
+
+cleanup_github_token_file() {
+    if [ -n "${GITHUB_TOKEN_FILE}" ] && [ -f "${GITHUB_TOKEN_FILE}" ]; then
+        rm -f "${GITHUB_TOKEN_FILE}"
+    fi
+}
+trap cleanup_github_token_file EXIT
+
+# 引数のトークン文字列から extra-vars 用の一時 JSON ファイルを生成し EXTRA_VARS_ARGS を設定する。
+# トークンが空の場合は何もしない (EXTRA_VARS_ARGS は空のまま)。
+prepare_github_token() {
+    local token="$1"
+    EXTRA_VARS_ARGS=()
+    if [ -z "${token}" ]; then
+        return 0
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "エラー: GitHub Token を安全に受け渡すために python3 が必要ですが、見つかりませんでした。" >&2
+        exit 1
+    fi
+    GITHUB_TOKEN_FILE="$(mktemp "${TMPDIR:-/tmp}/dotfiles-github-token.XXXXXX")"
+    chmod 600 "${GITHUB_TOKEN_FILE}"
+    # トークンは標準入力から python3 に渡し、プロセス引数 (argv) には一切含めない。
+    printf '%s' "${token}" | python3 -c 'import json, sys; sys.stdout.write(json.dumps({"github_token": sys.stdin.read()}))' > "${GITHUB_TOKEN_FILE}"
+    EXTRA_VARS_ARGS=("--extra-vars" "@${GITHUB_TOKEN_FILE}")
+}
+
+# --- 実行対象プレイブックの選択 ---
+# setup.yml は VPS 向け。bootstrap.yml は物理PC向け (事前に bootstrap.sh の実行を前提とする)。
+DEFAULT_PLAYBOOK="setup.yml"
+if [ -f "${SCRIPT_DIR}/bootstrap.yml" ]; then
+    read -rp "実行するプレイブックを選択してください [setup.yml(VPS)/bootstrap.yml(物理PC)] [${DEFAULT_PLAYBOOK}]: " PLAYBOOK
+    PLAYBOOK="${PLAYBOOK:-${DEFAULT_PLAYBOOK}}"
+else
+    PLAYBOOK="${DEFAULT_PLAYBOOK}"
+fi
+
+if [ "${PLAYBOOK}" != "setup.yml" ] && [ "${PLAYBOOK}" != "bootstrap.yml" ]; then
+    echo "エラー: プレイブックは setup.yml または bootstrap.yml を指定してください。" >&2
+    exit 1
+fi
+
 # --- デフォルト値の初期設定 ---
 DEFAULT_TARGET_IP=""
 DEFAULT_INIT_PORT="22"
@@ -59,9 +109,10 @@ DEFAULT_INIT_USER="root"
 DEFAULT_INIT_KEY_PATH=""
 
 DEFAULT_USERNAME="y_ohi"
+# 先頭の ~ は後段の normalize_path で $HOME に展開されるため、意図的に文字列のまま保持する
+# shellcheck disable=SC2088
 DEFAULT_SSH_KEY_PATH="~/.ssh/id_ed25519.pub"
 DEFAULT_NEW_SSH_PORT="5310"
-DEFAULT_GITHUB_TOKEN=""
 
 # --- 既存ファイルからのデフォルト値の抽出 ---
 # hosts.ini から初期接続情報の抽出
@@ -102,16 +153,12 @@ if [ -f "${SCRIPT_DIR}/vars.yml" ]; then
     # new_ssh_port
     TEMP_VAR=$(grep "^new_ssh_port:" "${SCRIPT_DIR}/vars.yml" | sed -E 's/^new_ssh_port:[[:space:]]*([0-9]+).*/\1/' || true)
     [ -n "${TEMP_VAR}" ] && [[ ! "${TEMP_VAR}" == *"new_ssh_port:"* ]] && DEFAULT_NEW_SSH_PORT="${TEMP_VAR}"
-
-    # github_token
-    TEMP_VAR=$(grep "^github_token:" "${SCRIPT_DIR}/vars.yml" | sed -E 's/^github_token:[[:space:]]*["'\''#]?([^"'\''#[:space:]]*)["'\''#]?.*/\1/' || true)
-    [ -n "${TEMP_VAR}" ] && [[ ! "${TEMP_VAR}" == *"github_token:"* ]] && DEFAULT_GITHUB_TOKEN="${TEMP_VAR}"
 fi
 
 # すでに設定ファイルが存在する場合の確認処理
 if [ -f "${SCRIPT_DIR}/hosts.ini" ] && [ -f "${SCRIPT_DIR}/vars.yml" ]; then
     echo ""
-    read -p "既存の設定をつかいますか？（y/N）: " USE_EXISTING
+    read -rp "既存の設定をつかいますか？（y/N）: " USE_EXISTING
     if [[ "${USE_EXISTING}" =~ ^[yY]$ ]]; then
         USE_CONFIG=true
     fi
@@ -120,8 +167,12 @@ fi
 # 既存の設定を使用する場合の実行処理
 if [ "${USE_CONFIG}" = true ]; then
     echo ""
+    # github_token は vars.yml へ保存しないため、既存設定利用時も都度入力を受け付ける。
+    read -rs -p "GitHub Personal Access Token (空の場合は手動 Deploy Key 登録): " GITHUB_TOKEN
+    echo
+    prepare_github_token "${GITHUB_TOKEN}"
     echo "==> 既存の設定ファイルを使用して Ansible プレイブックを実行しています..."
-    ansible-playbook "${SCRIPT_DIR}/setup.yml" -i "${SCRIPT_DIR}/hosts.ini" "${ANSIBLE_ARGS[@]}"
+    ansible-playbook "${SCRIPT_DIR}/${PLAYBOOK}" -i "${SCRIPT_DIR}/hosts.ini" "${EXTRA_VARS_ARGS[@]}" "${ANSIBLE_ARGS[@]}"
     exit 0
 fi
 
@@ -132,10 +183,10 @@ echo "======================================================="
 
 # 1. 接続先IPアドレス/ホスト名
 if [ -n "${DEFAULT_TARGET_IP}" ]; then
-    read -p "ターゲットサーバーの IPアドレス または ホスト名 [${DEFAULT_TARGET_IP}]: " TARGET_IP
+    read -rp "ターゲットサーバーの IPアドレス または ホスト名 [${DEFAULT_TARGET_IP}]: " TARGET_IP
     TARGET_IP="${TARGET_IP:-${DEFAULT_TARGET_IP}}"
 else
-    read -p "ターゲットサーバーの IPアドレス または ホスト名: " TARGET_IP
+    read -rp "ターゲットサーバーの IPアドレス または ホスト名: " TARGET_IP
     if [ -z "${TARGET_IP}" ]; then
         echo "エラー: IPアドレスまたはホスト名の入力は必須です。" >&2
         exit 1
@@ -144,7 +195,7 @@ fi
 
 # 2. 初期接続用のSSHポート番号
 while true; do
-    read -p "初期接続用の SSH ポート番号 [${DEFAULT_INIT_PORT}]: " INIT_PORT
+    read -rp "初期接続用の SSH ポート番号 [${DEFAULT_INIT_PORT}]: " INIT_PORT
     INIT_PORT="${INIT_PORT:-${DEFAULT_INIT_PORT}}"
     if validate_port "${INIT_PORT}"; then
         break
@@ -154,36 +205,33 @@ while true; do
 done
 
 # 3. 初期接続用のSSHユーザー
-read -p "初期接続用の SSH ユーザー [${DEFAULT_INIT_USER}]: " INIT_USER
+read -rp "初期接続用の SSH ユーザー [${DEFAULT_INIT_USER}]: " INIT_USER
 INIT_USER="${INIT_USER:-${DEFAULT_INIT_USER}}"
 
 # 4. 初期接続用のSSH秘密鍵パス
 if [ -n "${DEFAULT_INIT_KEY_PATH}" ]; then
-    read -p "初期接続用の SSH 秘密鍵パス [${DEFAULT_INIT_KEY_PATH}]: " INIT_KEY_PATH
+    read -rp "初期接続用の SSH 秘密鍵パス [${DEFAULT_INIT_KEY_PATH}]: " INIT_KEY_PATH
     INIT_KEY_PATH="${INIT_KEY_PATH:-${DEFAULT_INIT_KEY_PATH}}"
 else
-    read -p "初期接続用の SSH 秘密鍵パス (空の場合はデフォルトの鍵を使用): " INIT_KEY_PATH
+    read -rp "初期接続用の SSH 秘密鍵パス (空の場合はデフォルトの鍵を使用): " INIT_KEY_PATH
 fi
 
 # 5. 新規作成する一般ユーザー名
-read -p "新規作成する一般ユーザー名 [${DEFAULT_USERNAME}]: " USERNAME
+read -rp "新規作成する一般ユーザー名 [${DEFAULT_USERNAME}]: " USERNAME
 USERNAME="${USERNAME:-${DEFAULT_USERNAME}}"
 
 # 6. 実行元PCのSSH公開鍵パス (ターゲット of 新規ユーザー用)
-read -p "実行元PCのSSH公開鍵のパス [${DEFAULT_SSH_KEY_PATH}]: " SSH_KEY_PATH
+read -rp "実行元PCのSSH公開鍵のパス [${DEFAULT_SSH_KEY_PATH}]: " SSH_KEY_PATH
 SSH_KEY_PATH="${SSH_KEY_PATH:-${DEFAULT_SSH_KEY_PATH}}"
 
 # 6.5 GitHub Personal Access Token
-if [ -n "${DEFAULT_GITHUB_TOKEN}" ]; then
-    read -p "GitHub Personal Access Token [設定済みの値を保持]: " GITHUB_TOKEN
-    GITHUB_TOKEN="${GITHUB_TOKEN:-${DEFAULT_GITHUB_TOKEN}}"
-else
-    read -p "GitHub Personal Access Token (空の場合は設定しない): " GITHUB_TOKEN
-fi
+# トークンは端末に表示せず (-s) に受け取り、vars.yml へは保存しない。
+read -rs -p "GitHub Personal Access Token (空の場合は手動 Deploy Key 登録): " GITHUB_TOKEN
+echo
 
 # 7. 新しいSSHポート番号
 while true; do
-    read -p "変更後の SSH ポート番号 [${DEFAULT_NEW_SSH_PORT}]: " NEW_SSH_PORT
+    read -rp "変更後の SSH ポート番号 [${DEFAULT_NEW_SSH_PORT}]: " NEW_SSH_PORT
     NEW_SSH_PORT="${NEW_SSH_PORT:-${DEFAULT_NEW_SSH_PORT}}"
     if validate_port "${NEW_SSH_PORT}"; then
         break
@@ -197,7 +245,7 @@ done
 SSH_KEY_PATH_EXPANDED="$(normalize_path "${SSH_KEY_PATH}")"
 if [ ! -f "${SSH_KEY_PATH_EXPANDED}" ]; then
     echo "警告: 指定された公開鍵ファイルが見つかりません: ${SSH_KEY_PATH}"
-    read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM
+    read -rp "このまま続行しますか？ (y/N): " KEY_CONFIRM
     if [[ ! "${KEY_CONFIRM}" =~ ^[yY]$ ]]; then
         echo "中断しました。"
         exit 1
@@ -210,13 +258,20 @@ if [ -n "${INIT_KEY_PATH}" ]; then
     INIT_KEY_PATH_EXPANDED="$(normalize_path "${INIT_KEY_PATH}")"
     if [ ! -f "${INIT_KEY_PATH_EXPANDED}" ]; then
         echo "警告: 指定された接続用秘密鍵が見つかりません: ${INIT_KEY_PATH}"
-        read -p "このまま続行しますか？ (y/N): " KEY_CONFIRM_2
+        read -rp "このまま続行しますか？ (y/N): " KEY_CONFIRM_2
         if [[ ! "${KEY_CONFIRM_2}" =~ ^[yY]$ ]]; then
             echo "中断しました。"
             exit 1
         fi
     fi
     INIT_KEY_PARAM="ansible_private_key_file=${INIT_KEY_PATH_EXPANDED}"
+fi
+
+# GitHub Token は値を表示せず、確認用に「設定済 / 未設定」のみを表示する。
+if [ -n "${GITHUB_TOKEN}" ]; then
+    GITHUB_TOKEN_STATUS="設定済"
+else
+    GITHUB_TOKEN_STATUS="未設定"
 fi
 
 echo ""
@@ -229,9 +284,10 @@ echo "  - 初期接続秘密鍵      : ${INIT_KEY_PATH:-(デフォルトの鍵�
 echo "  - 新規作成ユーザー    : ${USERNAME}"
 echo "  - 登録するSSH公開鍵   : ${SSH_KEY_PATH}"
 echo "  - 変更後のSSHポート   : ${NEW_SSH_PORT}"
-echo "  - GitHub Token       : ${GITHUB_TOKEN:+設定済}${GITHUB_TOKEN:-未設定}"
+echo "  - 実行プレイブック    : ${PLAYBOOK}"
+echo "  - GitHub Token       : ${GITHUB_TOKEN_STATUS}"
 echo "======================================================="
-read -p "この設定で Ansible プレイブックを実行しますか？ (y/N): " CONFIRM
+read -rp "この設定で Ansible プレイブックを実行しますか？ (y/N): " CONFIRM
 if [[ ! "${CONFIRM}" =~ ^[yY]$ ]]; then
     echo "キャンセルしました。"
     exit 0
@@ -259,9 +315,13 @@ cat <<EOF > "${SCRIPT_DIR}/vars.yml"
 username: "${USERNAME}"
 ssh_public_key_path: "${SSH_KEY_PATH_EXPANDED}"
 new_ssh_port: ${NEW_SSH_PORT}
-github_token: "${GITHUB_TOKEN}"
+EOF
+
+# GitHub Token は機密情報のため vars.yml へは書き込まず、一時ファイル経由で受け渡す。
+prepare_github_token "${GITHUB_TOKEN}"
 
 echo "==> Ansible プレイブックを実行しています..."
-ansible-playbook "${SCRIPT_DIR}/setup.yml" \
+ansible-playbook "${SCRIPT_DIR}/${PLAYBOOK}" \
   -i "${SCRIPT_DIR}/hosts.ini" \
+  "${EXTRA_VARS_ARGS[@]}" \
   "${ANSIBLE_ARGS[@]}"

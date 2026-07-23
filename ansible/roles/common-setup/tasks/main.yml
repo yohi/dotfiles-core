@@ -1,0 +1,121 @@
+---
+# ansible/roles/common-setup/tasks/main.yml
+- name: Ensure operator SSH public key is authorized
+  ansible.posix.authorized_key:
+    user: "{{ username }}"
+    state: present
+    key: "{{ lookup('ansible.builtin.file', ssh_public_key_path) }}"
+  become: true
+  become_user: "{{ username }}"
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
+- name: Clone dotfiles-core repository
+  ansible.builtin.git:
+    repo: "git@github.com:yohi/dotfiles-core.git"
+    dest: "/home/{{ username }}/dotfiles"
+    accept_hostkey: true
+    key_file: "/home/{{ username }}/.ssh/id_ed25519"
+    version: master
+  become: true
+  become_user: "{{ username }}"
+
+- name: Check if UFW is installed
+  ansible.builtin.command: which ufw
+  register: ufw_check
+  failed_when: false
+  changed_when: false
+
+- name: Allow new SSH port via UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ new_ssh_port | string }}"
+    proto: tcp
+  when: ufw_check.rc == 0
+
+- name: Check if ssh.socket is active
+  ansible.builtin.systemd:
+    name: ssh.socket
+  register: ssh_socket_status
+  failed_when: false
+
+- name: Disable ssh.socket and enable ssh.service
+  ansible.builtin.systemd:
+    name: "{{ item.name }}"
+    enabled: "{{ item.enabled }}"
+    state: "{{ item.state }}"
+  loop:
+    - { name: "ssh.socket", enabled: false, state: "stopped" }
+    - { name: "ssh", enabled: true, state: "started" }
+  when:
+    - ssh_socket_status.status is defined
+    - ssh_socket_status.status.ActiveState is defined
+    - ssh_socket_status.status.ActiveState == 'active'
+
+- name: Configure SSH Daemon port
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?Port\s'
+    line: "Port {{ new_ssh_port }}"
+    state: present
+  notify: Restart SSH
+
+- name: Disable SSH Root Login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin\s'
+    line: "PermitRootLogin no"
+    state: present
+  notify: Restart SSH
+
+- name: Disable SSH Password Authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication\s'
+    line: "PasswordAuthentication no"
+    state: present
+  notify: Restart SSH
+
+- name: Flush handlers to restart SSH immediately
+  ansible.builtin.meta: flush_handlers
+
+- name: Switch Ansible to the hardened SSH endpoint
+  ansible.builtin.set_fact:
+    ansible_port: "{{ new_ssh_port }}"
+    ansible_user: "{{ username }}"
+
+- name: Reset the previous SSH control connection
+  ansible.builtin.meta: reset_connection
+
+- name: Verify SSH authentication and command execution on the new port
+  ansible.builtin.wait_for_connection:
+    timeout: 30
+  become: false
+
+- name: Gather the effective SSH daemon configuration over the new connection
+  ansible.builtin.command: sshd -T
+  become: true
+  changed_when: false
+  register: sshd_effective_config
+
+- name: Assert the SSH hardening is reflected in the effective configuration
+  ansible.builtin.assert:
+    that:
+      - '("port " ~ new_ssh_port) in sshd_effective_config.stdout_lines'
+      - '"permitrootlogin no" in sshd_effective_config.stdout_lines'
+      - '"passwordauthentication no" in sshd_effective_config.stdout_lines'
+    fail_msg: >-
+      SSH の実効設定 (sshd -T) が要求されたハードニング設定と一致しません。
+      期待値は 'port {{ new_ssh_port }}' / 'permitrootlogin no' /
+      'passwordauthentication no' です。/etc/ssh/sshd_config.d/*.conf の
+      ドロップイン (例: cloud-init の 'PasswordAuthentication yes') が
+      /etc/ssh/sshd_config の設定を上書きしていないか確認してください。
+    success_msg: >-
+      SSH の実効設定 (sshd -T) が要求されたハードニング設定
+      (port {{ new_ssh_port }}, permitrootlogin no, passwordauthentication no)
+      と一致することを確認しました。
