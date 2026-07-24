@@ -30,16 +30,17 @@ main() {
     local default_iface default_cidr default_ip default_subnet default_netmask
     local separator="======================================================="
 
-    default_iface="$(detect_iface)"
     if [[ -n "${default_iface}" ]]; then
         default_cidr="$(detect_ip_and_cidr "${default_iface}")"
-        default_ip="${default_cidr%/*}"
-        default_netmask="$(cidr_to_netmask "${default_cidr}")"
-        default_subnet="$(python3 -c "
+        if [[ -n "${default_cidr}" ]]; then
+            default_ip="${default_cidr%/*}"
+            default_netmask="$(cidr_to_netmask "${default_cidr}")"
+            default_subnet="$(python3 -c "
 import ipaddress
 net = ipaddress.ip_network('${default_cidr}', strict=False)
 print(net.network_address)
 ")"
+        fi
     fi
 
     echo "${separator}"
@@ -79,7 +80,6 @@ print(net.network_address)
 
     echo ""
     echo "${separator}"
-    echo "設定内容を確認してください："
     echo "設定内容を確認してください:"
     echo "  - 操作PC IP           : ${OPERATOR_IP}"
     echo "  - サブネット/ネットマスク: ${SUBNET} / ${NETMASK}"
