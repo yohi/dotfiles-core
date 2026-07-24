@@ -165,6 +165,15 @@ main() {
     dnsmasq -C "${WORK_DIR}/dnsmasq.conf" &
     DNSMASQ_PID=$!
 
+    sleep 1
+    if ! kill -0 "${DNSMASQ_PID}" 2>/dev/null; then
+        echo "ERROR: dnsmasq exited immediately (check ${WORK_DIR}/dnsmasq.conf or port conflicts)" >&2
+        exit 1
+    fi
+    if ! kill -0 "${HTTP_PID}" 2>/dev/null; then
+        echo "ERROR: HTTP server exited immediately" >&2
+        exit 1
+    fi
     echo ""
     echo "==================================================="
     echo "  PXE server ready."
