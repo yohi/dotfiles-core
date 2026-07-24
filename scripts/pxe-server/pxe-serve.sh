@@ -75,6 +75,19 @@ main() {
         fi
     done
 
+    for tool in dnsmasq envsubst python3 curl; do
+        if ! command -v "${tool}" >/dev/null 2>&1; then
+            echo "ERROR: required tool not found: ${tool}" >&2
+            echo "ERROR: try: sudo apt install dnsmasq gettext-base python3 curl" >&2
+            exit 1
+        fi
+    done
+
+    if [ ! -f "${ssh_pubkey_file}" ]; then
+        echo "ERROR: --ssh-pubkey-file not found: ${ssh_pubkey_file}" >&2
+        exit 1
+    fi
+
     if [ "${EUID}" -ne 0 ]; then
         echo "ERROR: pxe-serve.sh must run as root (dnsmasq needs raw socket / privileged ports)." >&2
         exit 1
@@ -123,7 +136,7 @@ main() {
     # not a hardcoded ubuntu-${version}-... path.
     cp "${iso_path}" "${http_root}/"
 
-    echo "==> Rendering autoinstall.yaml..."
+    echo "==> Rendering user-data (autoinstall config)..."
     render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${http_root}/autoinstall"
 
     echo "==> Rendering boot menu configs..."

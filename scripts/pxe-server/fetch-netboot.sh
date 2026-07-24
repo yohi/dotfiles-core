@@ -26,7 +26,6 @@ codename_for_version() {
 #
 # Returns 0 if a GET request to <url> succeeds (HTTP 200/3xx), 1 otherwise.
 # Downloads and discards the body to /dev/null (does not save to disk).
-# Does not download the body.
 url_exists() {
     local url="$1"
     curl --proto '=https' --proto-redir '=https' -fsSL -o /dev/null "${url}"
@@ -66,21 +65,23 @@ discover_boot_files() {
 
 # verify_sha256 <file> <sums_file>
 #
-# Verifies <file> against the matching line in <sums_file> (Ubuntu's
-# SHA256SUMS format: "<hex-digest>  <filename>"). Returns 1 on mismatch or
-# if the file is not listed.
+# Verifies <file> against the matching line in <sums_file>. Ubuntu's real
+# SHA256SUMS uses binary-mode markers ("<hex-digest> *<filename>"); the
+# historical text-mode two-space form ("<hex-digest>  <filename>") is also
+# accepted. Returns 1 on mismatch or if the file is not listed.
 verify_sha256() {
     local file="$1"
     local sums_file="$2"
-    local basename_file
+    local basename_file escaped_name
     basename_file="$(basename "${file}")"
+    escaped_name="${basename_file//./\\.}"
 
-    if ! grep -qF -- "  ${basename_file}" "${sums_file}"; then
+    if ! grep -Eq -- "[[:space:]]\*?${escaped_name}\$" "${sums_file}"; then
         echo "ERROR: ${basename_file} not listed in $(basename "${sums_file}")" >&2
         return 1
     fi
 
-    ( cd "$(dirname "${file}")" && grep -F -- "  ${basename_file}" "${sums_file}" | sha256sum -c - )
+    ( cd "$(dirname "${file}")" && grep -E -- "[[:space:]]\*?${escaped_name}\$" "${sums_file}" | sha256sum -c - )
 }
 
 # fetch_netboot <version> <cache_dir>
@@ -179,7 +180,7 @@ fetch_netboot() {
             -o "${tarball_dest}" "${base_url}/${tarball_name}"
         # Verify tarball integrity by attempting extraction
         if ! tar -tzf "${tarball_dest}" >/dev/null 2>&1; then
-            echo "ERROR: netball tarball is corrupted or invalid" >&2
+            echo "ERROR: netboot tarball is corrupted or invalid" >&2
             rm -f "${tarball_dest}"
             return 1
         fi

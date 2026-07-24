@@ -81,7 +81,7 @@ fetch_github_keys() {
 build_ssh_keys_yaml() {
     local operator_pubkey_file="$1"
     local github_user="$2"
-    local key github_keys
+    local key github_keys emitted=0
 
     if [ ! -f "${operator_pubkey_file}" ]; then
         echo "ERROR: operator SSH public key file not found: ${operator_pubkey_file}" >&2
@@ -89,13 +89,24 @@ build_ssh_keys_yaml() {
     fi
 
     while IFS= read -r key || [ -n "${key}" ]; do
-        [ -n "${key}" ] && printf '      - %s\n' "${key}"
+        if [ -n "${key//[[:space:]]/}" ]; then
+            printf '      - %s\n' "${key}"
+            emitted=1
+        fi
     done < "${operator_pubkey_file}"
 
     if github_keys="$(fetch_github_keys "${github_user}")"; then
         while IFS= read -r key || [ -n "${key}" ]; do
-            [ -n "${key}" ] && printf '      - %s\n' "${key}"
+            if [ -n "${key//[[:space:]]/}" ]; then
+                printf '      - %s\n' "${key}"
+                emitted=1
+            fi
         done <<< "${github_keys}"
+    fi
+
+    if [ "${emitted}" -eq 0 ]; then
+        echo "ERROR: no SSH public keys resolved from ${operator_pubkey_file} or GitHub; refusing to render an autoinstall config with allow-pw:false and zero keys (would lock out the target machine)" >&2
+        return 1
     fi
 
     return 0
@@ -122,13 +133,20 @@ render_autoinstall() {
 
     mkdir -p "${out_dir}"
 
+    # cloud-init's NoCloud datasource fetches HARDCODED filenames from the seed
+    # URL: it GETs exactly 'user-data' (and 'meta-data'), never 'autoinstall.yaml'.
+    # pxe-serve.sh boots with ds=nocloud-net;s=http://.../autoinstall/ so the
+    # rendered autoinstall config MUST be written AS 'user-data' here, or cloud-init
+    # 404s on '.../autoinstall/user-data', silently skips the datasource, and falls
+    # back to an interactive install. Do NOT rename this output back to autoinstall.yaml.
+    # Ref: https://docs.cloud-init.io/en/latest/reference/datasources/nocloud.html
     AI_HOSTNAME="${hostname}" \
     AI_USERNAME="${username}" \
     AI_PASSWORD_HASH="${password_hash}" \
     AI_SSH_KEYS_YAML="${ssh_keys_yaml}" \
         envsubst '${AI_HOSTNAME} ${AI_USERNAME} ${AI_PASSWORD_HASH} ${AI_SSH_KEYS_YAML}' \
         < "${TEMPLATE_DIR}/autoinstall.yaml.tmpl" \
-        > "${out_dir}/autoinstall.yaml"
+        > "${out_dir}/user-data"
 
     AI_HOSTNAME="${hostname}" \
     AI_INSTANCE_ID="${hostname}-$(date +%s)" \
@@ -136,8 +154,8 @@ render_autoinstall() {
         < "${TEMPLATE_DIR}/meta-data.tmpl" \
         > "${out_dir}/meta-data"
 
-    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/autoinstall.yaml'))"; then
-        echo "ERROR: generated autoinstall.yaml is not valid YAML" >&2
+    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/user-data'))"; then
+        echo "ERROR: generated user-data is not valid YAML" >&2
         return 1
     fi
 

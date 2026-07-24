@@ -58,10 +58,10 @@ else
     fail "render_autoinstall exits 0 with valid inputs"
 fi
 
-if [ -f "${OUT_DIR}/autoinstall.yaml" ]; then
-    pass "autoinstall.yaml is created"
+if [ -f "${OUT_DIR}/user-data" ]; then
+    pass "user-data is created"
 else
-    fail "autoinstall.yaml is created"
+    fail "user-data is created"
 fi
 
 if [ -f "${OUT_DIR}/meta-data" ]; then
@@ -70,34 +70,34 @@ else
     fail "meta-data is created"
 fi
 
-if python3 -c "import yaml,sys; yaml.safe_load(open('${OUT_DIR}/autoinstall.yaml'))" 2>/dev/null; then
-    pass "autoinstall.yaml is valid YAML"
+if python3 -c "import yaml,sys; yaml.safe_load(open('${OUT_DIR}/user-data'))" 2>/dev/null; then
+    pass "user-data is valid YAML"
 else
-    fail "autoinstall.yaml is valid YAML"
+    fail "user-data is valid YAML"
 fi
 
-if grep -q 'username: y_ohi' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml contains the requested username"
+if grep -q 'username: y_ohi' "${OUT_DIR}/user-data"; then
+    pass "user-data contains the requested username"
 else
-    fail "autoinstall.yaml contains the requested username"
+    fail "user-data contains the requested username"
 fi
 
-if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml embeds the operator's SSH public key"
+if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY' "${OUT_DIR}/user-data"; then
+    pass "user-data embeds the operator's SSH public key"
 else
-    fail "autoinstall.yaml embeds the operator's SSH public key"
+    fail "user-data embeds the operator's SSH public key"
 fi
 
-if grep -Fq 'password: "$6$fakehash$abcdefgh"' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
+if grep -Fq 'password: "$6$fakehash$abcdefgh"' "${OUT_DIR}/user-data"; then
+    pass "user-data embeds the password hash verbatim (including \$ characters)"
 else
-    fail "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
+    fail "user-data embeds the password hash verbatim (including \$ characters)"
 fi
 
-if ! grep -qi 'PermitRootLogin\|PasswordAuthentication' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml does not duplicate sshd hardening (left to Ansible)"
+if ! grep -qi 'PermitRootLogin\|PasswordAuthentication' "${OUT_DIR}/user-data"; then
+    pass "user-data does not duplicate sshd hardening (left to Ansible)"
 else
-    fail "autoinstall.yaml does not duplicate sshd hardening (left to Ansible)"
+    fail "user-data does not duplicate sshd hardening (left to Ansible)"
 fi
 
 rm -rf "${OUT_DIR}"
@@ -121,6 +121,17 @@ if build_ssh_keys_yaml "/nonexistent/path.pub" "" >/dev/null 2>&1; then
 else
     pass "build_ssh_keys_yaml rejects a missing operator key file"
 fi
+
+# ---- build_ssh_keys_yaml: empty operator key file (I1 zero-key lockout guard) --
+
+EMPTY_KEY_DIR="$(mktemp -d)"
+: > "${EMPTY_KEY_DIR}/empty.pub"
+if build_ssh_keys_yaml "${EMPTY_KEY_DIR}/empty.pub" "" >/dev/null 2>&1; then
+    fail "build_ssh_keys_yaml rejects an empty operator key file with no github user"
+else
+    pass "build_ssh_keys_yaml rejects an empty operator key file with no github user"
+fi
+rm -rf "${EMPTY_KEY_DIR}"
 
 # ---- Summary -----------------------------------------------------------------
 

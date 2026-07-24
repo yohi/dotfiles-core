@@ -17,3 +17,6 @@ dots
 # Ansible local configs
 /ansible/hosts.ini
 /ansible/vars.yml
+
+# PXE server downloaded artifacts (ISOs, netboot tarballs)
+scripts/pxe-server/.cache/

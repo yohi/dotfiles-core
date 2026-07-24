@@ -61,6 +61,9 @@ ansible-playbook setup.yml -i hosts.ini
 完了させる方式です。ISO の手動インストールも `scripts/bootstrap.sh` のコンソール実行も
 不要になります。操作 PC とターゲット PC は同一 LAN に接続してください。
 
+> [!NOTE]
+> 事前に操作 PC で `sudo apt install dnsmasq gettext-base` を実行し、必要なパッケージをインストールしてください（stock Ubuntu には `dnsmasq`・`envsubst` が未導入のことが多く、`run-pxe.sh` が起動直後に不足を検出して停止します）。
+
 ```bash
 cd scripts/pxe-server
 ./run-pxe.sh
