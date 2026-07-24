@@ -11,11 +11,16 @@
 # Build context is the repository root:
 #   docker build -t dotfiles-pxe-test -f tests/pxe-server/Dockerfile .
 #   docker run --rm dotfiles-pxe-test
+#
+# NOTE: This test image intentionally runs as root because it is a throw-away
+# regression-test container that never leaves the CI runner. No interactive
+# shell or exposed service is started.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y openssh-client gettext-base python3 python3-yaml openssl curl && \
+    apt-get install -y --no-install-recommends \
+        curl gettext-base openssh-client openssl python3 python3-yaml && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work

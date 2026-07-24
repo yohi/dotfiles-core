@@ -33,11 +33,11 @@ hash_password_interactive() {
     read -rs -p "確認のためもう一度入力してください: " pw2
     echo >&2
 
-    if [ "${pw1}" != "${pw2}" ]; then
+    if [[ "${pw1}" != "${pw2}" ]]; then
         echo "ERROR: パスワードが一致しません" >&2
         return 1
     fi
-    if [ -z "${pw1}" ]; then
+    if [[ -z "${pw1}" ]]; then
         echo "ERROR: パスワードは空にできません" >&2
         return 1
     fi
@@ -59,7 +59,7 @@ fetch_github_keys() {
     local github_user="$1"
     local payload
 
-    if [ -z "${github_user}" ]; then
+    if [[ -z "${github_user}" ]]; then
         return 1
     fi
 
@@ -85,18 +85,18 @@ build_ssh_keys_yaml() {
     local github_user="$2"
     local key github_keys
 
-    if [ ! -f "${operator_pubkey_file}" ]; then
+    if [[ ! -f "${operator_pubkey_file}" ]]; then
         echo "ERROR: operator SSH public key file not found: ${operator_pubkey_file}" >&2
         return 1
     fi
 
-    while IFS= read -r key || [ -n "${key}" ]; do
-        [ -n "${key}" ] && printf '      - %s\n' "${key}"
+    while IFS= read -r key || [[ -n "${key}" ]]; do
+        [[ -n "${key}" ]] && printf '      - %s\n' "${key}"
     done < "${operator_pubkey_file}"
 
     if github_keys="$(fetch_github_keys "${github_user}")"; then
-        while IFS= read -r key || [ -n "${key}" ]; do
-            [ -n "${key}" ] && printf '      - %s\n' "${key}"
+        while IFS= read -r key || [[ -n "${key}" ]]; do
+            [[ -n "${key}" ]] && printf '      - %s\n' "${key}"
         done <<< "${github_keys}"
     fi
 
@@ -113,7 +113,7 @@ render_autoinstall() {
     local out_dir="$6"
     local ssh_keys_yaml
 
-    if [ -z "${username}" ] || [ -z "${hostname}" ] || [ -z "${password_hash}" ]; then
+    if [[ -z "${username}" ]] || [[ -z "${hostname}" ]] || [[ -z "${password_hash}" ]]; then
         echo "ERROR: username, hostname, and password_hash are required" >&2
         return 1
     fi
@@ -138,7 +138,7 @@ render_autoinstall() {
         < "${TEMPLATE_DIR}/meta-data.tmpl" \
         > "${out_dir}/meta-data"
 
-    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/autoinstall.yaml'))"; then
+    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/autoinstall.yaml'))" 2>&1; then
         echo "ERROR: generated autoinstall.yaml is not valid YAML" >&2
         return 1
     fi
@@ -150,7 +150,7 @@ main() {
     set -euo pipefail
     local username="" hostname="" ssh_pubkey_file="" github_user="" password_hash="" out_dir=""
 
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --username) username="$2"; shift 2 ;;
             --hostname) hostname="$2"; shift 2 ;;
@@ -162,7 +162,7 @@ main() {
         esac
     done
 
-    if [ -z "${password_hash}" ]; then
+    if [[ -z "${password_hash}" ]]; then
         password_hash="$(hash_password_interactive)"
     fi
 

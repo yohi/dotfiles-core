@@ -18,20 +18,22 @@ TESTS_RUN=0
 TESTS_FAILED=0
 
 pass() {
+    local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
-    printf 'ok    - %s\n' "$1"
+    printf 'ok    - %s\n' "${msg}"
 }
 
 fail() {
+    local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    printf 'NOT OK - %s\n' "$1" >&2
-    if [ -n "${2:-}" ]; then
+    printf 'NOT OK - %s\n' "${msg}" >&2
+    if [[ -n "${2:-}" ]]; then
         printf '         %s\n' "$2" >&2
     fi
 }
 
-if [ ! -f "${RENDER_SH}" ]; then
+if [[ ! -f "${RENDER_SH}" ]]; then
     echo "FATAL: render-autoinstall.sh not found: ${RENDER_SH}" >&2
     exit 1
 fi
@@ -58,13 +60,13 @@ else
     fail "render_autoinstall exits 0 with valid inputs"
 fi
 
-if [ -f "${OUT_DIR}/autoinstall.yaml" ]; then
+if [[ -f "${OUT_DIR}/autoinstall.yaml" ]]; then
     pass "autoinstall.yaml is created"
 else
     fail "autoinstall.yaml is created"
 fi
 
-if [ -f "${OUT_DIR}/meta-data" ]; then
+if [[ -f "${OUT_DIR}/meta-data" ]]; then
     pass "meta-data is created"
 else
     fail "meta-data is created"
@@ -98,7 +100,7 @@ sys.exit(0 if target in text else 1)
 PY
 _password_hash_ok=$?
 set -u
-if [ "${_password_hash_ok}" -eq 0 ]; then
+if [[ "${_password_hash_ok}" -eq 0 ]]; then
     pass "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
 else
     fail "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
@@ -137,7 +139,7 @@ echo "==================================================="
 echo "  ${TESTS_RUN} tests run, ${TESTS_FAILED} failed"
 echo "==================================================="
 
-if [ "${TESTS_FAILED}" -gt 0 ]; then
+if [[ "${TESTS_FAILED}" -gt 0 ]]; then
     exit 1
 fi
 exit 0
