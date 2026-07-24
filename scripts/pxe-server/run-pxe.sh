@@ -28,6 +28,7 @@ print(net.netmask)
 
 main() {
     local default_iface default_cidr default_ip default_subnet default_netmask
+    default_iface="$(detect_iface)"
     local separator="======================================================="
 
     if [[ -n "${default_iface}" ]]; then
