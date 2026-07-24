@@ -22,13 +22,13 @@ HTTP_PID=""
 
 cleanup() {
     echo "==> Cleaning up..."
-    if [ -n "${DNSMASQ_PID}" ] && kill -0 "${DNSMASQ_PID}" 2>/dev/null; then
+    if [[ -n "${DNSMASQ_PID}" ]] && kill -0 "${DNSMASQ_PID}" 2>/dev/null; then
         kill "${DNSMASQ_PID}" 2>/dev/null || true
     fi
-    if [ -n "${HTTP_PID}" ] && kill -0 "${HTTP_PID}" 2>/dev/null; then
+    if [[ -n "${HTTP_PID}" ]] && kill -0 "${HTTP_PID}" 2>/dev/null; then
         kill "${HTTP_PID}" 2>/dev/null || true
     fi
-    if [ -n "${WORK_DIR}" ] && [ -d "${WORK_DIR}" ]; then
+    if [[ -n "${WORK_DIR}" ]] && [[ -d "${WORK_DIR}" ]]; then
         rm -rf "${WORK_DIR}"
     fi
 }
@@ -49,7 +49,7 @@ main() {
           username="" hostname="" ssh_pubkey_file="" github_user="" \
           password_hash="" http_port="8080"
 
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --iface) iface="$2"; shift 2 ;;
             --subnet) subnet="$2"; shift 2 ;;
@@ -68,7 +68,7 @@ main() {
     done
 
     for required in iface subnet netmask operator_ip version username hostname ssh_pubkey_file; do
-        if [ -z "${!required}" ]; then
+        if [[ -z "${!required}" ]]; then
             echo "ERROR: --${required//_/-} is required" >&2
             usage
             exit 1
@@ -83,17 +83,17 @@ main() {
         fi
     done
 
-    if [ ! -f "${ssh_pubkey_file}" ]; then
+    if [[ ! -f "${ssh_pubkey_file}" ]]; then
         echo "ERROR: --ssh-pubkey-file not found: ${ssh_pubkey_file}" >&2
         exit 1
     fi
 
-    if [ "${EUID}" -ne 0 ]; then
+    if [[ "${EUID}" -ne 0 ]]; then
         echo "ERROR: pxe-serve.sh must run as root (dnsmasq needs raw socket / privileged ports)." >&2
         exit 1
     fi
 
-    if [ -z "${password_hash}" ]; then
+    if [[ -z "${password_hash}" ]]; then
         password_hash="$(hash_password_interactive)"
     fi
 
@@ -108,7 +108,7 @@ main() {
     local fetch_output iso_path iso_filename
     fetch_output="$(fetch_netboot "${version}" "${CACHE_DIR}")"
     iso_path="$(printf '%s\n' "${fetch_output}" | sed -n 's/^ISO=//p')"
-    if [ -z "${iso_path}" ] || [ ! -f "${iso_path}" ]; then
+    if [[ -z "${iso_path}" ]] || [[ ! -f "${iso_path}" ]]; then
         echo "ERROR: fetch_netboot did not return a usable ISO path" >&2
         exit 1
     fi
@@ -169,7 +169,7 @@ main() {
     echo "==================================================="
     echo "  PXE server ready."
     echo "  Interface : ${iface}"
-    echo "  HTTP      : http://${operator_ip}:${http_port}/"
+    echo "  HTTP      : http://${operator_ip}:${http_port}/"  # NOSONAR(S5332): PXE/netboot requires plain HTTP for ISO/autoinstall payload serving
     echo "  Now power on the target PC and select network boot."
     echo "  Press Ctrl+C here once the install completes to tear down."
     echo "==================================================="

@@ -28,9 +28,10 @@ print(net.netmask)
 
 main() {
     local default_iface default_cidr default_ip default_subnet default_netmask
+    local separator="======================================================="
 
     default_iface="$(detect_iface)"
-    if [ -n "${default_iface}" ]; then
+    if [[ -n "${default_iface}" ]]; then
         default_cidr="$(detect_ip_and_cidr "${default_iface}")"
         default_ip="${default_cidr%/*}"
         default_netmask="$(cidr_to_netmask "${default_cidr}")"
@@ -41,16 +42,16 @@ print(net.network_address)
 ")"
     fi
 
-    echo "======================================================="
+    echo "${separator}"
     echo "  Ubuntu Server Autoinstall PXE - 対話式設定"
-    echo "======================================================="
+    echo "${separator}"
 
     read -rp "ネットワークインターフェース [${default_iface:-eth0}]: " IFACE
     IFACE="${IFACE:-${default_iface:-eth0}}"
 
     read -rp "操作PCのIPアドレス [${default_ip:-}]: " OPERATOR_IP
     OPERATOR_IP="${OPERATOR_IP:-${default_ip:-}}"
-    if [ -z "${OPERATOR_IP}" ]; then
+    if [[ -z "${OPERATOR_IP}" ]]; then
         echo "エラー: 操作PCのIPアドレスの入力は必須です。" >&2
         exit 1
     fi
@@ -77,9 +78,9 @@ print(net.network_address)
     read -rp "GitHub ユーザー名 (追加のSSH公開鍵を https://github.com/<user>.keys から取得、空でスキップ): " GITHUB_USER
 
     echo ""
-    echo "======================================================="
+    echo "${separator}"
+    echo "設定内容を確認してください："
     echo "設定内容を確認してください:"
-    echo "  - インターフェース    : ${IFACE}"
     echo "  - 操作PC IP           : ${OPERATOR_IP}"
     echo "  - サブネット/ネットマスク: ${SUBNET} / ${NETMASK}"
     echo "  - Ubuntuバージョン    : ${VERSION}"
@@ -87,7 +88,7 @@ print(net.network_address)
     echo "  - ホスト名            : ${HOSTNAME}"
     echo "  - SSH公開鍵           : ${SSH_KEY_PATH}"
     echo "  - GitHubユーザー名    : ${GITHUB_USER:-(スキップ)}"
-    echo "======================================================="
+    echo "${separator}"
     read -rp "この設定でPXEサーバーを起動しますか？ (root権限が必要です) (y/N): " CONFIRM
     if [[ ! "${CONFIRM}" =~ ^[yY]$ ]]; then
         echo "キャンセルしました。"
