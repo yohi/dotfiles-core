@@ -149,16 +149,18 @@ render_autoinstall() {
 main() {
     set -euo pipefail
     local username="" hostname="" ssh_pubkey_file="" github_user="" password_hash="" out_dir=""
+    local arg
 
     while [[ $# -gt 0 ]]; do
-        case "$1" in
+        arg="$1"
+        case "${arg}" in
             --username) username="$2"; shift 2 ;;
             --hostname) hostname="$2"; shift 2 ;;
             --ssh-pubkey-file) ssh_pubkey_file="$2"; shift 2 ;;
             --github-user) github_user="$2"; shift 2 ;;
             --password-hash) password_hash="$2"; shift 2 ;;
             --out-dir) out_dir="$2"; shift 2 ;;
-            *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
+            *) echo "ERROR: unknown argument: ${arg}" >&2; exit 1 ;;
         esac
     done
 

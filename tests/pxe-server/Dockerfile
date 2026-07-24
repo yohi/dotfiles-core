@@ -29,4 +29,10 @@ COPY scripts/pxe-server/render-autoinstall.sh /work/scripts/pxe-server/render-au
 COPY scripts/pxe-server/templates/ /work/scripts/pxe-server/templates/
 COPY tests/pxe-server/test_render_autoinstall.sh /work/tests/pxe-server/test_render_autoinstall.sh
 
+# Drop root — the test script does not need elevated privileges.
+# Uses a dedicated 'tester' user instead of 'nobody' to ensure
+# a writable home directory for SSH and other tools invoked
+# during rendering/validation paths.
+RUN useradd -m tester
+USER tester
 CMD ["/bin/bash", "/work/tests/pxe-server/test_render_autoinstall.sh"]
