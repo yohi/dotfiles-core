@@ -166,9 +166,11 @@ main() {
         password_hash="$(hash_password_interactive)" || exit 1
     fi
 
-    render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${out_dir}"
+    if ! render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${out_dir}"; then
+        return 1
+    fi
+    return 0
 }
-
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

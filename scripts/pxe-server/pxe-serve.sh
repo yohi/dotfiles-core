@@ -49,8 +49,10 @@ main() {
           username="" hostname="" ssh_pubkey_file="" github_user="" \
           password_hash="" http_port="8080"
 
+    local arg
     while [[ $# -gt 0 ]]; do
-        case "$1" in
+        arg="$1"
+        case "${arg}" in
             --iface) iface="$2"; shift 2 ;;
             --subnet) subnet="$2"; shift 2 ;;
             --netmask) netmask="$2"; shift 2 ;;
@@ -63,7 +65,7 @@ main() {
             --password-hash) password_hash="$2"; shift 2 ;;
             --http-port) http_port="$2"; shift 2 ;;
             -h|--help) usage; exit 0 ;;
-            *) echo "ERROR: unknown argument: $1" >&2; usage; exit 1 ;;
+            *) echo "ERROR: unknown argument: ${arg}" >&2; usage; exit 1 ;;
         esac
     done
 

@@ -21,16 +21,18 @@ pass() {
     local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
     printf 'ok    - %s\n' "${msg}"
+    return 0
 }
-
 fail() {
     local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
     printf 'NOT OK - %s\n' "${msg}" >&2
-    if [[ -n "${2:-}" ]]; then
-        printf '         %s\n' "$2" >&2
+    local msg2="${2:-}"
+    if [[ -n "${msg2}" ]]; then
+        printf '         %s\n' "${msg2}" >&2
     fi
+    return 0
 }
 
 if [[ ! -f "${RENDER_SH}" ]]; then
