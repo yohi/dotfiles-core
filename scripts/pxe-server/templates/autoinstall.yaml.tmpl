@@ -1,0 +1,21 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  identity:
+    hostname: ${AI_HOSTNAME}
+    username: ${AI_USERNAME}
+    password: "${AI_PASSWORD_HASH}"
+  ssh:
+    install-server: true
+    allow-pw: false
+    authorized-keys:
+${AI_SSH_KEYS_YAML}
+  storage:
+    layout:
+      name: lvm
+  late-commands:
+    - curtin in-target -- systemctl enable ssh
+    - curtin in-target -- touch /var/log/dotfiles-autoinstall-complete
