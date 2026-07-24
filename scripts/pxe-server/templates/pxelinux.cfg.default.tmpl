@@ -1,0 +1,13 @@
+DEFAULT autoinstall
+TIMEOUT 100
+PROMPT 0
+
+LABEL autoinstall
+  MENU LABEL Ubuntu ${AI_VERSION} Server (dotfiles-core autoinstall)
+  KERNEL vmlinuz
+  INITRD initrd
+  APPEND ip=dhcp url=http://${OPERATOR_IP}:${HTTP_PORT}/${AI_ISO_FILENAME} autoinstall ds=nocloud-net;s=http://${OPERATOR_IP}:${HTTP_PORT}/autoinstall/ cloud-config-url=/dev/null
+
+LABEL local
+  MENU LABEL Boot from local disk
+  LOCALBOOT 0
