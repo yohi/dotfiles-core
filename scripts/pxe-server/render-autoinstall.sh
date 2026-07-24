@@ -1,7 +1,7 @@
 #!/bin/bash
 # scripts/pxe-server/render-autoinstall.sh
 #
-# Renders autoinstall.yaml + meta-data for one provisioning session from a
+# Renders user-data (autoinstall config) + meta-data for one provisioning session from a
 # username, hostname, operator SSH public key, optional GitHub username
 # (for additional public keys, fetched unauthenticated from
 # https://github.com/<user>.keys), and a pre-hashed password. Never accepts

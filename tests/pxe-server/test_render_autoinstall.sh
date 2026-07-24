@@ -133,6 +133,17 @@ else
 fi
 rm -rf "${EMPTY_KEY_DIR}"
 
+# ---- build_ssh_keys_yaml: whitespace-only operator key file (blank-lines lockout guard) --
+
+WS_KEY_DIR="$(mktemp -d)"
+printf '   \n\t\n' > "${WS_KEY_DIR}/blank.pub"
+if build_ssh_keys_yaml "${WS_KEY_DIR}/blank.pub" "" >/dev/null 2>&1; then
+    fail "build_ssh_keys_yaml rejects a whitespace-only operator key file"
+else
+    pass "build_ssh_keys_yaml rejects a whitespace-only operator key file"
+fi
+rm -rf "${WS_KEY_DIR}"
+
 # ---- Summary -----------------------------------------------------------------
 
 echo ""
