@@ -5,6 +5,12 @@
 # live-server ISO for a given version, caching them under <cache_dir>/<version>/.
 # Source-able for testing (main() runs only on direct execution).
 
+# Common curl options for secure fetches
+CURL_BASE_OPTS=(--proto '=https' --proto-redir '=https' -fsSL)
+# Stall-detection thresholds for large downloads (bytes/sec over seconds)
+readonly CURL_SPEED_LIMIT=1000
+readonly CURL_SPEED_TIME=30
+
 
 # codename_for_version <version>
 #
@@ -28,7 +34,7 @@ codename_for_version() {
 # Downloads and discards the body to /dev/null (does not save to disk).
 url_exists() {
     local url="$1"
-    curl --proto '=https' --proto-redir '=https' -fsSL -o /dev/null "${url}"
+    curl "${CURL_BASE_OPTS[@]}" -o /dev/null "${url}"
 }
 
 # discover_boot_files <extract_dir>
@@ -107,13 +113,12 @@ fetch_netboot() {
         return 1
     fi
 
-    curl --proto '=https' --proto-redir '=https' -fsSL \
-        -o "${version_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"
+    curl "${CURL_BASE_OPTS[@]}" -o "${version_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"
 
     # Detect actual filenames from the release directory HTML
     # (netboot tarball may not be in SHA256SUMS, so we fetch the directory listing)
     local index_html iso_list point_release
-    index_html="$(curl --proto '=https' --proto-redir '=https' -fsSL "${base_url}/")"
+    index_html="$(curl "${CURL_BASE_OPTS[@]}" "${base_url}/")"
 
     # Extract all ISO filenames and sort by version descending to get newest
     iso_list="$(echo "${index_html}" | grep -oP 'ubuntu-[0-9.]+(-live-server-amd64\.iso)' | sort -rV)"
@@ -144,8 +149,7 @@ fetch_netboot() {
         local dest="$1"
         local iso_name="$2"
         echo "==> Downloading ${iso_name}..."
-        curl --proto '=https' --proto-redir '=https' -fsSL \
-            -o "${dest}" "${base_url}/${iso_name}"
+        curl "${CURL_BASE_OPTS[@]}" --speed-limit "${CURL_SPEED_LIMIT}" --speed-time "${CURL_SPEED_TIME}" -o "${dest}" "${base_url}/${iso_name}"
         if ! verify_sha256 "${dest}" "${version_dir}/SHA256SUMS"; then
             echo "ERROR: checksum verification failed for ${iso_name}" >&2
             rm -f "${dest}"
@@ -172,12 +176,11 @@ fetch_netboot() {
     # Structural integrity is verified via tar -tzf (catches corruption/truncation, not tampering).
     # This is an accepted, documented limitation -- analogous to ansible/README.md's Cloudflare Workers
     # script-integrity check scoped to transport-corruption detection only.
-    if [ -f "${tarball_dest}" ] && [ -d "${version_dir}/netboot-extracted" ] && [ -n "$(find "${version_dir}/netboot-extracted" -type f 2>/dev/null | head -1)" ]; then
+    if [ -f "${tarball_dest}" ] && [ -f "${version_dir}/netboot-extracted/.done" ]; then
         echo "==> ${tarball_name} already cached and extracted, skipping download."
     else
         echo "==> Downloading ${tarball_name}..."
-        curl --proto '=https' --proto-redir '=https' -fsSL \
-            -o "${tarball_dest}" "${base_url}/${tarball_name}"
+        curl "${CURL_BASE_OPTS[@]}" --speed-limit "${CURL_SPEED_LIMIT}" --speed-time "${CURL_SPEED_TIME}" -o "${tarball_dest}" "${base_url}/${tarball_name}"
         # Verify tarball integrity by attempting extraction
         if ! tar -tzf "${tarball_dest}" >/dev/null 2>&1; then
             echo "ERROR: netboot tarball is corrupted or invalid" >&2
@@ -185,8 +188,15 @@ fetch_netboot() {
             return 1
         fi
         # Extract tarball
+        rm -rf "${version_dir}/netboot-extracted"
         mkdir -p "${version_dir}/netboot-extracted"
-        tar -xzf "${tarball_dest}" -C "${version_dir}/netboot-extracted"
+        if ! tar -xzf "${tarball_dest}" -C "${version_dir}/netboot-extracted"; then
+            echo "ERROR: failed to extract netboot tarball" >&2
+            rm -rf "${version_dir}/netboot-extracted"
+            rm -f "${tarball_dest}"
+            return 1
+        fi
+        touch "${version_dir}/netboot-extracted/.done"
     fi
 
     # Output resolved paths for caller extraction
@@ -197,7 +207,6 @@ fetch_netboot() {
     }
 
 main() {
-    set -euo pipefail
     local version="${1:?Usage: fetch-netboot.sh <version> <cache_dir>}"
     local cache_dir="${2:?Usage: fetch-netboot.sh <version> <cache_dir>}"
     fetch_netboot "${version}" "${cache_dir}"
@@ -205,5 +214,6 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    set -euo pipefail
     main "$@"
 fi
