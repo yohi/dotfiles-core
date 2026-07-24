@@ -63,7 +63,7 @@ fetch_github_keys() {
         return 1
     fi
 
-    payload="$(curl --proto '=https' --proto-redir '=https' -fsSL "https://github.com/${github_user}.keys")"
+    payload="$(curl --proto '=https' --proto-redir '=https' -fsSL --max-time 60 "https://github.com/${github_user}.keys")"
     if ! validate_pubkeys "${payload}"; then
         echo "ERROR: https://github.com/${github_user}.keys did not return a valid key set" >&2
         return 1
@@ -90,9 +90,16 @@ build_ssh_keys_yaml() {
         return 1
     fi
 
+    local operator_keys
+    operator_keys="$(cat "${operator_pubkey_file}")"
+    if ! validate_pubkeys "${operator_keys}"; then
+        echo "ERROR: operator SSH public key file contains empty or invalid keys: ${operator_pubkey_file}" >&2
+        return 1
+    fi
+
     while IFS= read -r key || [[ -n "${key}" ]]; do
         [[ -n "${key}" ]] && printf '      - %s\n' "${key}"
-    done < "${operator_pubkey_file}"
+    done <<< "${operator_keys}"
 
     if github_keys="$(fetch_github_keys "${github_user}")"; then
         while IFS= read -r key || [[ -n "${key}" ]]; do
@@ -130,7 +137,7 @@ render_autoinstall() {
     AI_SSH_KEYS_YAML="${ssh_keys_yaml}" \
         envsubst '${AI_HOSTNAME} ${AI_USERNAME} ${AI_PASSWORD_HASH} ${AI_SSH_KEYS_YAML}' \
         < "${TEMPLATE_DIR}/autoinstall.yaml.tmpl" \
-        > "${out_dir}/autoinstall.yaml"
+        > "${out_dir}/user-data"
 
     AI_HOSTNAME="${hostname}" \
     AI_INSTANCE_ID="${hostname}-$(date +%s)" \
@@ -138,8 +145,8 @@ render_autoinstall() {
         < "${TEMPLATE_DIR}/meta-data.tmpl" \
         > "${out_dir}/meta-data"
 
-    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/autoinstall.yaml'))" 2>&1; then
-        echo "ERROR: generated autoinstall.yaml is not valid YAML" >&2
+    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/user-data'))" 2>&1; then
+        echo "ERROR: generated user-data is not valid YAML" >&2
         return 1
     fi
 

@@ -54,7 +54,7 @@ done
 # ---- render_autoinstall: happy path -----------------------------------------
 
 OUT_DIR="$(mktemp -d)"
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY operator@pc" > "${OUT_DIR}/operator.pub"
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/ operator@pc" > "${OUT_DIR}/operator.pub"
 
 if render_autoinstall "y_ohi" "ubuntu-pxe" "${OUT_DIR}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR}"; then
     pass "render_autoinstall exits 0 with valid inputs"
@@ -62,10 +62,10 @@ else
     fail "render_autoinstall exits 0 with valid inputs"
 fi
 
-if [[ -f "${OUT_DIR}/autoinstall.yaml" ]]; then
-    pass "autoinstall.yaml is created"
+if [[ -f "${OUT_DIR}/user-data" ]]; then
+    pass "user-data is created"
 else
-    fail "autoinstall.yaml is created"
+    fail "user-data is created"
 fi
 
 if [[ -f "${OUT_DIR}/meta-data" ]]; then
@@ -74,44 +74,44 @@ else
     fail "meta-data is created"
 fi
 
-if python3 -c "import yaml,sys; yaml.safe_load(open('${OUT_DIR}/autoinstall.yaml'))" 2>/dev/null; then
-    pass "autoinstall.yaml is valid YAML"
+if python3 -c "import yaml,sys; yaml.safe_load(open('${OUT_DIR}/user-data'))" 2>/dev/null; then
+    pass "user-data is valid YAML"
 else
-    fail "autoinstall.yaml is valid YAML"
+    fail "user-data is valid YAML"
 fi
 
-if grep -q 'username: y_ohi' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml contains the requested username"
+if grep -q 'username: y_ohi' "${OUT_DIR}/user-data"; then
+    pass "user-data contains the requested username"
 else
-    fail "autoinstall.yaml contains the requested username"
+    fail "user-data contains the requested username"
 fi
 
-if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml embeds the operator's SSH public key"
+if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/' "${OUT_DIR}/user-data"; then
+    pass "user-data embeds the operator's SSH public key"
 else
-    fail "autoinstall.yaml embeds the operator's SSH public key"
+    fail "user-data embeds the operator's SSH public key"
 fi
 
 set +u
 python3 - "$OUT_DIR" <<"PY"
 import sys, os
 out_dir = sys.argv[1]
-text = open(os.path.join(out_dir, "autoinstall.yaml")).read()
+text = open(os.path.join(out_dir, "user-data")).read()
 target = "password: " + chr(39) + "$6$fakehash$abcdefgh" + chr(39)
 sys.exit(0 if target in text else 1)
 PY
 _password_hash_ok=$?
 set -u
 if [[ "${_password_hash_ok}" -eq 0 ]]; then
-    pass "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
+    pass "user-data embeds the password hash verbatim (including \$ characters)"
 else
-    fail "autoinstall.yaml embeds the password hash verbatim (including \$ characters)"
+    fail "user-data embeds the password hash verbatim (including \$ characters)"
 fi
 
-if ! grep -qi 'PermitRootLogin\|PasswordAuthentication' "${OUT_DIR}/autoinstall.yaml"; then
-    pass "autoinstall.yaml does not duplicate sshd hardening (left to Ansible)"
+if ! grep -qi 'PermitRootLogin\|PasswordAuthentication' "${OUT_DIR}/user-data"; then
+    pass "user-data does not duplicate sshd hardening (left to Ansible)"
 else
-    fail "autoinstall.yaml does not duplicate sshd hardening (left to Ansible)"
+    fail "user-data does not duplicate sshd hardening (left to Ansible)"
 fi
 
 rm -rf "${OUT_DIR}"
@@ -119,7 +119,8 @@ rm -rf "${OUT_DIR}"
 # ---- render_autoinstall: rejects missing required fields -------------------
 
 OUT_DIR2="$(mktemp -d)"
-if render_autoinstall "" "ubuntu-pxe" "${OUT_DIR}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR2}" 2>/dev/null; then
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/ operator@pc" > "${OUT_DIR2}/operator.pub"
+if render_autoinstall "" "ubuntu-pxe" "${OUT_DIR2}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR2}" 2>/dev/null; then
     fail "render_autoinstall rejects an empty username"
 else
     pass "render_autoinstall rejects an empty username"
