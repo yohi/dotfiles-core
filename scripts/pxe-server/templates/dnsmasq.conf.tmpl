@@ -3,7 +3,7 @@
 # doing that. This only answers PXE-specific DHCP options.
 interface=${PXE_IFACE}
 bind-interfaces
-dhcp-range=${PXE_IFACE},${PXE_SUBNET},proxy,${PXE_NETMASK}
+dhcp-range=${PXE_SUBNET},proxy,${PXE_NETMASK}
 
 pxe-prompt="dotfiles-core autoinstall PXE", 5
 pxe-service=x86PC,"Ubuntu Autoinstall (BIOS)",pxelinux.0
