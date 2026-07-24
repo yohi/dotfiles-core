@@ -5,6 +5,16 @@
 # live-server ISO for a given version, caching them under <cache_dir>/<version>/.
 # Source-able for testing (main() runs only on direct execution).
 
+# Common curl options reused across this script: enforce HTTPS, follow redirects
+# only over HTTPS, fail on server errors, and set connect/transfer-stall timeouts.
+CURL_SECURITY_OPTS=(
+    --proto '=https'
+    --proto-redir '=https'
+    -fsSL
+    --connect-timeout 30
+    --speed-time 30
+    --speed-limit 1000
+)
 
 # codename_for_version <version>
 #
@@ -29,7 +39,7 @@ codename_for_version() {
 # Downloads and discards the body to /dev/null (does not save to disk).
 url_exists() {
     local url="$1"
-    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 -o /dev/null "${url}"
+    curl "${CURL_SECURITY_OPTS[@]}" --max-time 60 -o /dev/null "${url}"
 }
 
 # discover_boot_files <extract_dir>
@@ -85,21 +95,16 @@ verify_sha256() {
     ( cd "$(dirname "${file}")" && grep -E -- "[[:space:]]\*?${escaped_name}\$" "${sums_file}" | sha256sum -c - )
 }
 
-# fetch_netboot <version> <cache_dir>
+# _download_and_verify_iso <dest> <iso_name> <base_url> <sums_file>
 #
-# Downloads (if not already cached and verified) the netboot tarball and
-# live-server ISO for <version> into <cache_dir>/<version>/. Idempotent:
-# re-running with an intact, checksum-verified cache does nothing.
-# Outputs ISO=<path> and TARBALL=<path> for caller extraction.
-
+# Downloads the named ISO and verifies it against the SHA256SUMS file.
 _download_and_verify_iso() {
     local dest="$1"
     local iso_name="$2"
     local base_url="$3"
     local sums_file="$4"
     echo "==> Downloading ${iso_name}..."
-    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 \
-        -o "${dest}" "${base_url}/${iso_name}"
+    curl "${CURL_SECURITY_OPTS[@]}" -o "${dest}" "${base_url}/${iso_name}"
     if ! verify_sha256 "${dest}" "${sums_file}"; then
         echo "ERROR: checksum verification failed for ${iso_name}" >&2
         rm -f "${dest}"
@@ -107,6 +112,12 @@ _download_and_verify_iso() {
     fi
 }
 
+# fetch_netboot <version> <cache_dir>
+#
+# Downloads (if not already cached and verified) the netboot tarball and
+# live-server ISO for <version> into <cache_dir>/<version>/. Idempotent:
+# re-running with an intact, checksum-verified cache does nothing.
+# Outputs ISO=<path> and TARBALL=<path> for caller extraction.
 fetch_netboot() {
     local version="$1"
     local cache_dir="$2"
@@ -124,7 +135,7 @@ fetch_netboot() {
         return 1
     fi
 
-    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 \
+    curl "${CURL_SECURITY_OPTS[@]}" --max-time 60 \
         -o "${version_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"
 
     # Detect actual filenames from the release directory HTML
@@ -132,7 +143,7 @@ fetch_netboot() {
     # NOTE: This relies on Apache directory listing HTML format. No stable JSON API
     # for releases.ubuntu.com filenames exists at this time; failure is handled below.
     local index_html iso_list point_release
-    index_html="$(curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 "${base_url}/")"
+    index_html="$(curl "${CURL_SECURITY_OPTS[@]}" --max-time 60 "${base_url}/")"
 
     # Extract all ISO filenames and sort by version descending to get newest
     iso_list="$(echo "${index_html}" | grep -oP 'ubuntu-[0-9.]+(-live-server-amd64\.iso)' | sort -rV)"
@@ -178,21 +189,22 @@ fetch_netboot() {
     # Structural integrity is verified via tar -tzf (catches corruption/truncation, not tampering).
     # This is an accepted, documented limitation -- analogous to ansible/README.md's Cloudflare Workers
     # script-integrity check scoped to transport-corruption detection only.
-    if [ -f "${tarball_dest}" ] && [ -d "${version_dir}/netboot-extracted" ] && [ -n "$(find "${version_dir}/netboot-extracted" -type f 2>/dev/null | head -1)" ]; then
+    if [ -f "${tarball_dest}" ] && [ -f "${version_dir}/netboot-extracted/.extracted" ]; then
         echo "==> ${tarball_name} already cached and extracted, skipping download."
     else
         echo "==> Downloading ${tarball_name}..."
-        curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 \
-            -o "${tarball_dest}" "${base_url}/${tarball_name}"
+        curl "${CURL_SECURITY_OPTS[@]}" -o "${tarball_dest}" "${base_url}/${tarball_name}"
         # Verify tarball integrity by attempting extraction
         if ! tar -tzf "${tarball_dest}" >/dev/null 2>&1; then
             echo "ERROR: netboot tarball is corrupted or invalid" >&2
             rm -f "${tarball_dest}"
             return 1
         fi
-        # Extract tarball
+        # Extract tarball (remove any partial extraction left by a prior failure)
+        rm -rf "${version_dir}/netboot-extracted"
         mkdir -p "${version_dir}/netboot-extracted"
         tar -xzf "${tarball_dest}" -C "${version_dir}/netboot-extracted"
+        touch "${version_dir}/netboot-extracted/.extracted"
     fi
 
     # Output resolved paths for caller extraction
@@ -203,7 +215,6 @@ fetch_netboot() {
 }
 
 main() {
-    set -euo pipefail
     local version="${1:?Usage: fetch-netboot.sh <version> <cache_dir>}"
     local cache_dir="${2:?Usage: fetch-netboot.sh <version> <cache_dir>}"
     fetch_netboot "${version}" "${cache_dir}"
@@ -211,5 +222,6 @@ main() {
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    set -euo pipefail
     main "$@"
 fi
