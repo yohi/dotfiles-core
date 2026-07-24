@@ -18,6 +18,7 @@ codename_for_version() {
     case "${version}" in
         22.04) echo "jammy" ;;
         24.04) echo "noble" ;;
+        26.04) echo "resolute" ;;
         *) echo "${version}" ;;
     esac
 }
@@ -28,7 +29,7 @@ codename_for_version() {
 # Downloads and discards the body to /dev/null (does not save to disk).
 url_exists() {
     local url="$1"
-    curl --proto '=https' --proto-redir '=https' -fsSL -o /dev/null "${url}"
+    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 -o /dev/null "${url}"
 }
 
 # discover_boot_files <extract_dir>
@@ -90,6 +91,22 @@ verify_sha256() {
 # live-server ISO for <version> into <cache_dir>/<version>/. Idempotent:
 # re-running with an intact, checksum-verified cache does nothing.
 # Outputs ISO=<path> and TARBALL=<path> for caller extraction.
+
+_download_and_verify_iso() {
+    local dest="$1"
+    local iso_name="$2"
+    local base_url="$3"
+    local sums_file="$4"
+    echo "==> Downloading ${iso_name}..."
+    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 \
+        -o "${dest}" "${base_url}/${iso_name}"
+    if ! verify_sha256 "${dest}" "${sums_file}"; then
+        echo "ERROR: checksum verification failed for ${iso_name}" >&2
+        rm -f "${dest}"
+        return 1
+    fi
+}
+
 fetch_netboot() {
     local version="$1"
     local cache_dir="$2"
@@ -107,13 +124,15 @@ fetch_netboot() {
         return 1
     fi
 
-    curl --proto '=https' --proto-redir '=https' -fsSL \
+    curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 \
         -o "${version_dir}/SHA256SUMS" "${base_url}/SHA256SUMS"
 
     # Detect actual filenames from the release directory HTML
     # (netboot tarball may not be in SHA256SUMS, so we fetch the directory listing)
+    # NOTE: This relies on Apache directory listing HTML format. No stable JSON API
+    # for releases.ubuntu.com filenames exists at this time; failure is handled below.
     local index_html iso_list point_release
-    index_html="$(curl --proto '=https' --proto-redir '=https' -fsSL "${base_url}/")"
+    index_html="$(curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 --max-time 60 "${base_url}/")"
 
     # Extract all ISO filenames and sort by version descending to get newest
     iso_list="$(echo "${index_html}" | grep -oP 'ubuntu-[0-9.]+(-live-server-amd64\.iso)' | sort -rV)"
@@ -139,19 +158,6 @@ fetch_netboot() {
     iso_dest="${version_dir}/${iso_name}"
     tarball_dest="${version_dir}/${tarball_name}"
 
-    # Helper function to download and verify ISO
-    _download_and_verify_iso() {
-        local dest="$1"
-        local iso_name="$2"
-        echo "==> Downloading ${iso_name}..."
-        curl --proto '=https' --proto-redir '=https' -fsSL \
-            -o "${dest}" "${base_url}/${iso_name}"
-        if ! verify_sha256 "${dest}" "${version_dir}/SHA256SUMS"; then
-            echo "ERROR: checksum verification failed for ${iso_name}" >&2
-            rm -f "${dest}"
-            return 1
-        fi
-    }
 
     if [ -f "${iso_dest}" ]; then
         if verify_sha256 "${iso_dest}" "${version_dir}/SHA256SUMS" >/dev/null 2>&1; then
@@ -159,10 +165,10 @@ fetch_netboot() {
         else
             echo "==> ${iso_name} exists but checksum mismatch, re-downloading..."
             rm -f "${iso_dest}"
-            _download_and_verify_iso "${iso_dest}" "${iso_name}" || return 1
+            _download_and_verify_iso "${iso_dest}" "${iso_name}" "${base_url}" "${version_dir}/SHA256SUMS" || return 1
         fi
     else
-        _download_and_verify_iso "${iso_dest}" "${iso_name}" || return 1
+        _download_and_verify_iso "${iso_dest}" "${iso_name}" "${base_url}" "${version_dir}/SHA256SUMS" || return 1
     fi
 
     # Download netboot tarball (may not be in SHA256SUMS; verify by checking if extraction succeeds)
@@ -176,7 +182,7 @@ fetch_netboot() {
         echo "==> ${tarball_name} already cached and extracted, skipping download."
     else
         echo "==> Downloading ${tarball_name}..."
-        curl --proto '=https' --proto-redir '=https' -fsSL \
+        curl --proto '=https' --proto-redir '=https' -fsSL --connect-timeout 30 \
             -o "${tarball_dest}" "${base_url}/${tarball_name}"
         # Verify tarball integrity by attempting extraction
         if ! tar -tzf "${tarball_dest}" >/dev/null 2>&1; then
@@ -194,7 +200,7 @@ fetch_netboot() {
     echo "TARBALL=${tarball_dest}"
 
     return 0
-    }
+}
 
 main() {
     set -euo pipefail
