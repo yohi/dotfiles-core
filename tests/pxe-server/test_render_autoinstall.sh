@@ -105,7 +105,9 @@ rm -rf "${OUT_DIR}"
 # ---- render_autoinstall: rejects missing required fields -------------------
 
 OUT_DIR2="$(mktemp -d)"
-if render_autoinstall "" "ubuntu-pxe" "${OUT_DIR}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR2}" 2>/dev/null; then
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY operator@pc" > "${OUT_DIR2}/operator.pub"
+
+if render_autoinstall "" "ubuntu-pxe" "${OUT_DIR2}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR2}" 2>/dev/null; then
     fail "render_autoinstall rejects an empty username"
 else
     pass "render_autoinstall rejects an empty username"

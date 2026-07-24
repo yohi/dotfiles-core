@@ -1,12 +1,11 @@
 # dotfiles-pxe-server render-autoinstall regression test image.
 #
-# Provides Ubuntu with the runtime deps render-autoinstall.sh needs at
-# source-time (gettext-base for envsubst, python3+pyyaml for YAML
-# validation, openssl for password hashing, curl+openssh-client because
-# bootstrap.sh is sourced transitively). Does NOT run the imperative PXE
+# Provides Ubuntu with the runtime deps render-autoinstall.sh needs when
+# its code paths are exercised (gettext-base for envsubst, python3+pyyaml for YAML
+# validation, openssl for password hashing, curl for potential GitHub key fetch,
+# openssh-client for SSH key operations). Does NOT run the imperative PXE
 # flow (no dnsmasq, no network boot), so no root/network access is needed
-# at test time beyond what curl needs for the (network-dependent) GitHub
-# key fetch test cases, which use an empty github_user to skip fetching.
+# at test time.
 #
 # Build context is the repository root:
 #   docker build -t dotfiles-pxe-test -f tests/pxe-server/Dockerfile .
@@ -15,7 +14,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y openssh-client gettext-base python3 python3-yaml openssl && \
+    apt-get install -y openssh-client gettext-base python3 python3-yaml openssl curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
