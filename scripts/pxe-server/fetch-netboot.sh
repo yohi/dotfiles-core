@@ -128,6 +128,7 @@ fetch_netboot() {
     version_dir="${cache_dir}/${version}"
 
     mkdir -p "${version_dir}"
+    version_dir="$(cd "${version_dir}" && pwd)"
 
     if ! url_exists "${base_url}/SHA256SUMS"; then
         echo "ERROR: ${base_url}/SHA256SUMS is not reachable." >&2
