@@ -187,13 +187,13 @@ fetch_netboot() {
         mkdir -p "${version_dir}/netboot-extracted"
         tar -xzf "${tarball_dest}" -C "${version_dir}/netboot-extracted"
     fi
-}
 
     # Output resolved paths for caller extraction
     echo "ISO=${iso_dest}"
     echo "TARBALL=${tarball_dest}"
 
     return 0
+    }
 
 main() {
     set -euo pipefail
