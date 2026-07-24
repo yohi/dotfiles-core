@@ -94,7 +94,7 @@ main() {
     fi
 
     if [[ -z "${password_hash}" ]]; then
-        password_hash="$(hash_password_interactive)"
+        password_hash="$(hash_password_interactive)" || exit 1
     fi
 
     echo "==> Fetching Ubuntu ${version} netboot artifacts..."

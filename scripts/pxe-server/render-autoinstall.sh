@@ -163,7 +163,7 @@ main() {
     done
 
     if [[ -z "${password_hash}" ]]; then
-        password_hash="$(hash_password_interactive)"
+        password_hash="$(hash_password_interactive)" || exit 1
     fi
 
     render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${out_dir}"
