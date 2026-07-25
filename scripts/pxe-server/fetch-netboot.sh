@@ -103,7 +103,7 @@ _download_and_verify_iso() {
     local iso_name="$2"
     local base_url="$3"
     local sums_file="$4"
-    echo "==> Downloading ${iso_name}..."
+    echo "==> Downloading ${iso_name}..." >&2
     curl "${CURL_SECURITY_OPTS[@]}" -o "${dest}" "${base_url}/${iso_name}"
     if ! verify_sha256 "${dest}" "${sums_file}"; then
         echo "ERROR: checksum verification failed for ${iso_name}" >&2
@@ -173,9 +173,9 @@ fetch_netboot() {
 
     if [ -f "${iso_dest}" ]; then
         if verify_sha256 "${iso_dest}" "${version_dir}/SHA256SUMS" >/dev/null 2>&1; then
-            echo "==> ${iso_name} already cached and verified, skipping download."
+            echo "==> ${iso_name} already cached and verified, skipping download." >&2
         else
-            echo "==> ${iso_name} exists but checksum mismatch, re-downloading..."
+            echo "==> ${iso_name} exists but checksum mismatch, re-downloading..." >&2
             rm -f "${iso_dest}"
             _download_and_verify_iso "${iso_dest}" "${iso_name}" "${base_url}" "${version_dir}/SHA256SUMS" || return 1
         fi
@@ -191,9 +191,9 @@ fetch_netboot() {
     # This is an accepted, documented limitation -- analogous to ansible/README.md's Cloudflare Workers
     # script-integrity check scoped to transport-corruption detection only.
     if [ -f "${tarball_dest}" ] && [ -f "${version_dir}/netboot-extracted/.extracted" ]; then
-        echo "==> ${tarball_name} already cached and extracted, skipping download."
+        echo "==> ${tarball_name} already cached and extracted, skipping download." >&2
     else
-        echo "==> Downloading ${tarball_name}..."
+        echo "==> Downloading ${tarball_name}..." >&2
         curl "${CURL_SECURITY_OPTS[@]}" -o "${tarball_dest}" "${base_url}/${tarball_name}"
         # Verify tarball integrity by attempting extraction
         if ! tar -tzf "${tarball_dest}" >/dev/null 2>&1; then
