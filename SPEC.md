@@ -212,6 +212,7 @@ sequenceDiagram
 * **authorized_keys の二重検証**: オペレーター PC の SSH 公開鍵ファイルと GitHub から取得した鍵は、いずれも `scripts/bootstrap.sh` 由来の `validate_pubkeys()` を通じて形式・内容を検証する。
 * **Zero-key Lockout Guard**: `build_ssh_keys_yaml()` は、オペレーター鍵ファイルが空・不正で、かつ GitHub 鍵も取得できない場合に autoinstall 設定を生成せずにエラー終了する。`allow-pw: false`（パスワード認証無効）とゼロ鍵の組み合わせによるマシンロックアウトを防ぐ。
 * **netboot 成果物の動的解決**: `fetch_netboot()` は Ubuntu のポイントリリースによる可変ファイル名（例: `ubuntu-24.04.4-live-server-amd64.iso` および `ubuntu-24.04.4-netboot-amd64.tar.gz`）を HTML ディレクトリリスティングから動的に抽出する。固定名を推測して古いバージョンや存在しないファイルをダウンロードするリスクを回避する。
+* **PXE 成果物の整合性検証境界**: ISO ファイル（例: `ubuntu-24.04.4-live-server-amd64.iso`）は Ubuntu 公式に公開された SHA-256 チェックサムと照合する。netboot tarball（例: `ubuntu-24.04.4-netboot-amd64.tar.gz`）には公開されたチェックサムエントリが存在しないため、アーカイブの整合性検証（`tar` 展開テストなど）のみを行う。これは転送・保存中の破損を検出できるが、配布元の真正性を保証するものではない。
 
 ### Testing Strategy
 
@@ -261,7 +262,7 @@ dotfiles-core の Makefile はただのディスパッチャーに徹し、make 
 
 物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。
 
-* **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを実行する。操作 PC 上でエフェメラルな PXE/TFTP/HTTP サーバーを起動し、Ubuntu Server autoinstall (subiquity) 経由でユーザー作成・SSH 鍵登録までを自動化する。
+* **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを実行する。操作 PC 上でエフェメラルな PXE/TFTP/HTTP サーバーを起動し、Ubuntu Server autoinstall (subiquity) 経由でユーザー作成・SSH 鍵登録までを自動化する。PXE ブートはレガシー BIOS（PXELINUX）と UEFI（GRUB）の双方をサポートする。
 * **物理 PC（フォールバック）**: PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）を Cloudflare Workers 経由でダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行する。
 * **VPS**: 操作 PC から Ansible のみで完結させる。
 

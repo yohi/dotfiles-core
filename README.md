@@ -69,6 +69,8 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 
 > [!NOTE]
 > このフローは「まだ Ubuntu マシンがセットアップされていない」段階を対象とします。dotfiles-core のクローンと本セットアップ（`common-setup` ロール）は Ansible が自動的に実行するため、上記フローの後に以下の Quick Start を別途実行する必要はありません。
+>
+> なお、Ubuntu 26.04 のネットブート成果物（codename: `resolute`）は執筆時点で未検証です。`fetch_netboot()` は URL の到達性を確認し、存在しない場合は明確なエラーメッセージを返して即座に失敗します。
 
 ## ⚡ Quick Start (Bootstrap)
 
