@@ -62,6 +62,9 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 まだ dotfiles-core を導入していない、まっさらな Ubuntu マシン（物理 PC / VPS）を用意する場合は、`ansible/` 配下のセットアップフローを使用します。
 
 - **物理 PC**（外部から SSH 接続できない場合）: ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）をダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行し、SSH 接続の準備（`y_ohi` ユーザー作成、GitHub 公開鍵登録、SSH ハードニング）を行います。その後、操作 PC から Ansible（`ansible/bootstrap.yml`）で本セットアップを実行します。スクリプトは Cloudflare Workers（`scripts/workers/`）経由で HTTPS 配信され、`X-Script-SHA256` ヘッダによる整合性検証が可能です（検証手順は下記 `ansible/README.md` を参照）。
+  同一LAN上であれば、`scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストール
+  （OS インストール自体の自動化、ユーザー名・SSH 鍵設定込み）も利用できます。
+  詳細は [`ansible/README.md`](ansible/README.md) を参照してください。
 - **VPS**（外部から SSH 接続できる場合）: ターゲット PC のコンソールには入らず、操作 PC から Ansible（`ansible/setup.yml`）のみで全て実施します。
 
 両方とも、対話式ランチャー `ansible/run.sh` から実行します。詳細な手順・セキュリティ設計は [`ansible/README.md`](ansible/README.md) を参照してください。

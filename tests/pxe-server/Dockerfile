@@ -1,9 +1,9 @@
 # dotfiles-pxe-server render-autoinstall regression test image.
 #
-# Provides Ubuntu with the runtime deps render-autoinstall.sh needs at
-# source-time (gettext-base for envsubst, python3+pyyaml for YAML
-# validation, openssl for password hashing, openssh-client because
-# bootstrap.sh is sourced transitively). Does NOT run the imperative PXE
+# Provides Ubuntu with the runtime deps render-autoinstall.sh needs when
+# its code paths are exercised (gettext-base for envsubst, python3+pyyaml for YAML
+# validation, openssl for password hashing, curl for potential GitHub key fetch,
+# openssh-client for SSH key operations). Does NOT run the imperative PXE
 # flow (no dnsmasq, no network boot), so no root/network access is needed
 # at test time beyond what curl needs for the (network-dependent) GitHub
 # key fetch test cases, which use an empty github_user to skip fetching.
@@ -12,9 +12,9 @@
 #   docker build -t dotfiles-pxe-test -f tests/pxe-server/Dockerfile .
 #   docker run --rm dotfiles-pxe-test
 #
-# NOTE: This test image intentionally runs as root because it is a throw-away
+# NOTE: This test image intentionally runs as root during build because it is a throw-away
 # regression-test container that never leaves the CI runner. No interactive
-# shell or exposed service is started.
+# shell or exposed service is started. At runtime it drops to an unprivileged user.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive

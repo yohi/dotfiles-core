@@ -105,15 +105,23 @@ sequenceDiagram
 
 ブートストラップスクリプトと Ansible の間では以下のように責務を分離する。
 
-* **`scripts/bootstrap.sh` の責務**: SSH 接続に必要な最小限の準備（ユーザー作成、公開鍵登録、SSH ハードニング）のみ。
+* **`scripts/bootstrap.sh` の責務**: PXE を使わない手動 ISO インストール時のレガシー経路として、SSH 接続に必要な最小限の準備（ユーザー作成、公開鍵登録、SSH ハードニング）のみを行う。PXE 経路ではユーザー作成・SSH 公開鍵登録は autoinstall、SSH ハードニングは Ansible (`common-setup` ロール) が担当する。
 * **Ansible (`common-setup` ロール) の責務**: SSH ポート変更、dotfiles-core のクローン、完全なパッケージインストール、ファイアウォール設定、GitHub Deploy Key の登録。`bootstrap.sh` はこれらを一切実施しない。
+* **`scripts/pxe-server/` の責務**: 物理 PC 向けの PXE 無人インストール。ProxyDHCP
+  (dnsmasq) + TFTP + HTTP を操作 PC 上で一時的に起動し、Ubuntu Server autoinstall
+  (subiquity) 経由でホスト名・ユーザー作成・SSH 公開鍵登録までを OS インストール中に
+  完了させる。`scripts/bootstrap.sh` が担っていたユーザー作成・SSH 鍵登録の責務を
+  autoinstall 側に移し、`scripts/bootstrap.sh` は PXE を使わない手動 ISO インストール
+  時のみのレガシー経路として残す。SSH ハードニング（ポート変更・root ログイン禁止・
+  パスワード認証禁止）は従来通り Ansible (`common-setup` ロール) が単一の責務として
+  担い、autoinstall の late-commands では重複させない。
 
 ### Directory Structure
 
 ```text
 dotfiles-core/
 ├── scripts/
-│   ├── bootstrap.sh              # 物理PC用ブートストラップスクリプト (root実行, y_ohiユーザー作成/SSHハードニング)
+│   ├── bootstrap.sh              # 手動ISOインストール用ブートストラップスクリプト (レガシー, root実行, y_ohiユーザー作成/SSHハードニング)
 │   └── workers/
 │       ├── install.js            # Cloudflare Workers 配信スクリプト (GitHub raw中継 + SHA-256ヘッダー付与)
 │       ├── install.test.js       # Workers用テスト (Miniflare)
