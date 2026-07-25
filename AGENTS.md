@@ -12,7 +12,6 @@ Goal: one command (`make setup`) takes a machine from zero to a fully configured
 dev environment — clone all component repos, resolve secrets, symlink dotfiles, and
 delegate setup to each component's own `Makefile`.
 
-
 ## How
 
 - This repo has **no app code, app-specific unit tests, or build artifacts** — pure
