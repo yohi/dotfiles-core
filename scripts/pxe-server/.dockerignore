@@ -1,0 +1,25 @@
+# Git / CI
+.git
+.github
+.gitignore
+
+# Editor / IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Tests not needed at PXE server runtime
+tests
+
+# Existing cache must not be baked into image
+scripts/pxe-server/.cache
+
+# Documentation not needed inside image
+README.md
+docs
+
+# Large / non-runtime files
+*.iso
+*.tar.gz
+*.md
