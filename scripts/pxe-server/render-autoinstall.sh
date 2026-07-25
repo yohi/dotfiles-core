@@ -138,11 +138,16 @@ render_autoinstall() {
         return 1
     fi
 
+    if [[ -z "${out_dir}" ]]; then
+        echo "ERROR: out_dir is required and cannot be empty" >&2
+        return 1
+    fi
+
     mkdir -p "${out_dir}"
 
     # cloud-init's NoCloud datasource fetches HARDCODED filenames from the seed
     # URL: it GETs exactly 'user-data' (and 'meta-data'), never 'autoinstall.yaml'.
-    # pxe-serve.sh boots with ds=nocloud-net;s=http://.../autoinstall/ so the
+    # run-pxe.sh boots with ds=nocloud-net;s=http://.../autoinstall/ so the
     # rendered autoinstall config MUST be written AS 'user-data' here, or cloud-init
     # 404s on '.../autoinstall/user-data', silently skips the datasource, and falls
     # back to an interactive install. Do NOT rename this output back to autoinstall.yaml.
