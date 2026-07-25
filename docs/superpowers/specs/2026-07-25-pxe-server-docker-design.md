@@ -112,6 +112,7 @@ netboot tarball と ISO のダウンロードは、Docker named volume で永続
 
 - `dnsmasq`
 - `python3`
+- `python3-yaml`
 - `curl`
 - `openssl`
 - `openssh-client`
@@ -129,7 +130,7 @@ netboot tarball と ISO のダウンロードは、Docker named volume で永続
 
 `docker-entrypoint.sh` は以下の役割を持つ。
 
-1. 必須環境変数（`PXE_IFACE`, `PXE_SUBNET`, `PXE_NETMASK`, `OPERATOR_IP`, `VERSION`, `USERNAME`, `HOSTNAME`, `PASSWORD_HASH` または対話入力）を確認する。
+1. 必須環境変数（`PXE_IFACE`, `PXE_SUBNET`, `PXE_NETMASK`, `OPERATOR_IP`, `VERSION`, `USERNAME`, `TARGET_HOSTNAME`, `PASSWORD_HASH` または対話入力）を確認する。
 2. `pxe-serve.sh` の引数形式に変換する。
 3. `exec` で `pxe-serve.sh` を起動する。
 
@@ -162,7 +163,7 @@ services:
       OPERATOR_IP: ${OPERATOR_IP}
       VERSION: ${VERSION:-24.04}
       USERNAME: ${USERNAME:-y_ohi}
-      HOSTNAME: ${HOSTNAME:-ubuntu-pxe}
+      TARGET_HOSTNAME: ${TARGET_HOSTNAME:-ubuntu-pxe}
       PASSWORD_HASH: ${PASSWORD_HASH}
       GITHUB_USER: ${GITHUB_USER}
       HTTP_PORT: ${HTTP_PORT:-8080}
@@ -185,7 +186,7 @@ PXE_NETMASK=255.255.255.0
 OPERATOR_IP=192.168.1.10
 VERSION=24.04
 USERNAME=y_ohi
-HOSTNAME=ubuntu-pxe
+TARGET_HOSTNAME=ubuntu-pxe
 SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub
 GITHUB_USER=
 HTTP_PORT=8080
