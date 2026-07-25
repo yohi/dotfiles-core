@@ -27,7 +27,7 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
 
 | Category | Technology / Tool | Version/Note |
 | :---- | :---- | :---- |
-| **OS** | Ubuntu | 22.04 / 24.04 LTS |
+| **OS** | Ubuntu | 22.04 / 24.04 / 26.04 LTS |
 | **Orchestration** | GNU Make + Bash | dotfiles-core による統合処理と、各コンポーネントへの処理委譲 |
 | **Repo Management** | vcstool | 複数リポジトリの並列一括クローン・プルをYAMLで宣言的に管理 |
 | **Symlink Manager** | Makefile内での明示的な定義 | 柔軟なパス解決と冪等性のあるリンク (`ln -sfn`) をコンポーネント単位で実現 |
@@ -35,6 +35,8 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
 | **Provisioning** | Ansible | 新規Ubuntuマシン（物理PC/VPS）の初期セットアップ（ユーザー作成、SSHハードニング、UFW設定等） |
 | **Script Distribution** | Cloudflare Workers | ブートストラップスクリプト (`scripts/bootstrap.sh`) をGitHub raw経由でHTTPS配信し、SHA-256整合性ヘッダーを付与 |
 
+> [!NOTE]
+> Ubuntu 26.04 のネットブート成果物（codename: `resolute`）は執筆時点で未検証です。`fetch_netboot()` は URL の到達性を確認し、存在しない場合は明確なエラーメッセージを返して即座に失敗します。
 # Architecture
 
 ## Directory Structure (Meta & Component Layout)
@@ -46,7 +48,7 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
 ├── .gitignore                  <-- "components/" を除外
 ├── Makefile                    <-- メイン・ディスパッチャー
 ├── repos.yaml                  <-- vcstool用 リポジトリ定義
-├── scripts/                    <-- 全体管理スクリプト
+├── scripts/                    <-- 全体管理スクリプト (bootstrap.sh, pxe-server/, workers/)
 └── components/
     ├── dotfiles-system/        <-- [Repo: dotfiles-system]
     ├── dotfiles-zsh/
@@ -101,20 +103,15 @@ sequenceDiagram
 
 ## Ubuntu Bootstrap Flow (新規マシンの初期セットアップ)
 
-`make setup` を実行する前段階、つまり「まだ Ubuntu マシンに何もセットアップされていない」状態から SSH 接続可能な状態にするためのフロー。物理 PC と VPS で経路が異なる。
+`make setup` を実行する前段階、つまり「まだ Ubuntu マシンがセットアップされていない」状態から SSH 接続可能な状態にするためのフロー。物理 PC と VPS で経路が異なる。
 
-ブートストラップスクリプトと Ansible の間では以下のように責務を分離する。
+### 責務分離
 
-* **`scripts/bootstrap.sh` の責務**: PXE を使わない手動 ISO インストール時のレガシー経路として、SSH 接続に必要な最小限の準備（ユーザー作成、公開鍵登録、SSH ハードニング）のみを行う。PXE 経路ではユーザー作成・SSH 公開鍵登録は autoinstall、SSH ハードニングは Ansible (`common-setup` ロール) が担当する。
-* **Ansible (`common-setup` ロール) の責務**: SSH ポート変更、dotfiles-core のクローン、完全なパッケージインストール、ファイアウォール設定、GitHub Deploy Key の登録。`bootstrap.sh` はこれらを一切実施しない。
-* **`scripts/pxe-server/` の責務**: 物理 PC 向けの PXE 無人インストール。ProxyDHCP
-  (dnsmasq) + TFTP + HTTP を操作 PC 上で一時的に起動し、Ubuntu Server autoinstall
-  (subiquity) 経由でホスト名・ユーザー作成・SSH 公開鍵登録までを OS インストール中に
-  完了させる。`scripts/bootstrap.sh` が担っていたユーザー作成・SSH 鍵登録の責務を
-  autoinstall 側に移し、`scripts/bootstrap.sh` は PXE を使わない手動 ISO インストール
-  時のみのレガシー経路として残す。SSH ハードニング（ポート変更・root ログイン禁止・
-  パスワード認証禁止）は従来通り Ansible (`common-setup` ロール) が単一の責務として
-  担い、autoinstall の late-commands では重複させない。
+ブートストラップスクリプト、PXE 無人インストール、Ansible の間では以下のように責務を分離する。
+
+* **`scripts/pxe-server/` の責務 (推奨・物理 PC)**: 操作 PC 上で一時的に ProxyDHCP (dnsmasq) + TFTP + HTTP を起動し、Ubuntu Server の autoinstall (subiquity) を PXE ネットワークブートで配信する。OS インストール中にホスト名設定・ユーザー作成 (`y_ohi`)・SSH 公開鍵登録までを完了させ、`bootstrap.sh` で行っていた「SSH 接続の準備」フェーズを完全に自動化する。パスワードは `openssl passwd -6` でローカルハッシュ化されたもののみを使用し、平文は一切ディスクや argv に露出しない。
+* **`scripts/bootstrap.sh` の責務 (レガシー・物理 PC)**: PXE が使えない環境でのフォールバック経路。手動 ISO インストール後のターゲット PC コンソール上で実行され、SSH 接続に必要な最小限の準備（ユーザー作成、GitHub 公開鍵取得・`authorized_keys` 管理ブロック登録、SSH ハードニング）のみを行う。PXE 経路ではユーザー作成・SSH 公開鍵登録は autoinstall、SSH ハードニングは Ansible (`common-setup` ロール) が担当するため、`bootstrap.sh` は PXE を使わない手動 ISO インストール時のみ使用される。
+* **Ansible (`common-setup` ロール) の責務 (共通)**: SSH ポート変更、dotfiles-core のクローン、完全なパッケージインストール、ファイアウォール設定、GitHub Deploy Key の登録。`bootstrap.sh` や autoinstall の late-commands はこれらを一切実施しない。特に SSH ハードニング（`PermitRootLogin no` / `PasswordAuthentication no` / ポート変更）については Ansible が単一のソース・オブ・トゥルースとして担い、autoinstall の late-commands では重複させない。
 
 ### Directory Structure
 
@@ -122,20 +119,51 @@ sequenceDiagram
 dotfiles-core/
 ├── scripts/
 │   ├── bootstrap.sh              # 手動ISOインストール用ブートストラップスクリプト (レガシー, root実行, y_ohiユーザー作成/SSHハードニング)
+│   ├── pxe-server/               # PXE無人インストールサーバースクリプト群 (操作PC上で実行)
+│   │   ├── run-pxe.sh            # 対話式ランチャー (ansible/run.sh UX と同等)
+│   │   ├── pxe-serve.sh          # エフェメラル PXE/TFTP/HTTP オーケストレータ (フォアグラウンド実行)
+│   │   ├── fetch-netboot.sh      # Ubuntu netboot成果物の取得・検証スクリプト
+│   │   ├── render-autoinstall.sh # user-data/meta-data レンダリングスクリプト
+│   │   └── templates/            # envsubst テンプレート群 (dnsmasq.conf, grub.cfg, pxelinux.cfg, autoinstall.yaml, meta-data)
 │   └── workers/
 │       ├── install.js            # Cloudflare Workers 配信スクリプト (GitHub raw中継 + SHA-256ヘッダー付与)
 │       ├── install.test.js       # Workers用テスト (Miniflare)
 │       └── wrangler.toml         # Workers デプロイ設定
 ├── ansible/
 │   ├── setup.yml                 # VPS用プレイブック (ゼロから全セットアップ)
-│   ├── bootstrap.yml             # 物理PC用プレイブック (ブートストラップ後の本セットアップ)
+│   ├── bootstrap.yml             # 物理PC用プレイブック (ブートストラップ/autoinstall後の本セットアップ)
 │   ├── run.sh                    # 対話式セットアップランチャー (hosts.ini/vars.yml生成)
 │   ├── hosts.ini / vars.yml      # 実行時生成されるインベントリ・変数ファイル
 │   └── roles/common-setup/       # 両プレイブック共通の本セットアップタスク
-└── tests/bootstrap/              # bootstrap.sh の Docker ベース回帰テスト
+├── tests/
+│   ├── bootstrap/                # bootstrap.sh の Docker ベース回帰テスト
+│   └── pxe-server/               # render-autoinstall.sh の Docker ベース回帰テスト
 ```
 
-### Data Flow (物理PC)
+### Data Flow (物理PC — PXE無人インストール経路・推奨)
+
+```mermaid
+sequenceDiagram
+    participant OperatorPC as 操作PC (scripts/pxe-server/run-pxe.sh)
+    participant PXEServe as 操作PC (pxe-serve.sh)
+    participant Target as ターゲットPC (PXEブート → autoinstall)
+
+    OperatorPC->>PXEServe: 対話式入力後 exec (root権限)
+    PXEServe->>PXEServe: fetch-netboot.sh: Ubuntu netboot tarball + ISO をダウンロード・検証
+    PXEServe->>PXEServe: render-autoinstall.sh: user-data + meta-data を生成 (cloud-init NoCloud)
+    PXEServe->>PXEServe: dnsmasq (ProxyDHCP + TFTP) + python3 HTTP server を起動
+    Target->>PXEServe: PXE boot: DHCP Discover → ProxyDHCP 応答 (IP は既存ルーターから)
+    Target->>PXEServe: TFTP 取得: vmlinuz, initrd, grub.cfg/pxelinux.cfg
+    Target->>PXEServe: HTTP 取得: user-data, meta-data, ISO
+    Target->>Target: subiquity (autoinstall) 実行: ユーザー作成, SSH鍵登録, ディスクレイアウト (LVM)
+    Target->>Target: インストール完了後自動リブート → SSH 22番で待受 (鍵認証のみ有効)
+    OperatorPC->>Target: ansible-playbook bootstrap.yml (SSH:22, user=y_ohi, key認証)
+    Target->>Target: Deploy Key生成 → GitHub登録 → dotfiles-coreクローン
+    Target->>Target: common-setupロール: パッケージ導入, UFW設定, SSHポート変更(5310), 再接続確認
+    PXEServe->>PXEServe: Ctrl+C で dnsmasq + HTTP server を停止 (エフェメラル)
+```
+
+### Data Flow (物理PC — 手動ISOインストール経路・レガシー)
 
 ```mermaid
 sequenceDiagram
@@ -178,13 +206,18 @@ sequenceDiagram
 * **鍵検証の限界**: 公開鍵の形式検証（`ssh-keygen -l -f -` で解釈可能か）は、侵害された GitHub アカウントから返る形式上正しい鍵の真正性までは保証しない。
 * **Deploy Key の非転送**: 物理 PC 用フローでは、ターゲット上で生成した Deploy Key の秘密鍵をターゲット外へ転送・表示しない。GitHub には公開鍵のみを read-only で登録する。
 
-詳細な運用手順は [`ansible/README.md`](ansible/README.md) を参照。
+#### PXE フロー特有のセキュリティ設計
+
+* **平文パスワードの非保持**: `hash_password_interactive()` は対話的に入力されたパスワードを `openssl passwd -6` で即座にハッシュ化し、平文をシェル変数からゼロクリアしてから stdout に出力する。ハッシュ値のみが autoinstall 設定ファイル（cloud-init NoCloud datasource の仕様によりファイル名は `user-data` でなければならない）に書き込まれ、平文は一切ディスクやプロセス引数に露出しない。
+* **authorized_keys の二重検証**: オペレーター PC の SSH 公開鍵ファイルと GitHub から取得した鍵は、いずれも `scripts/bootstrap.sh` 由来の `validate_pubkeys()` を通じて形式・内容を検証する。
+* **Zero-key Lockout Guard**: `build_ssh_keys_yaml()` は、オペレーター鍵ファイルが空・不正で、かつ GitHub 鍵も取得できない場合に autoinstall 設定を生成せずにエラー終了する。`allow-pw: false`（パスワード認証無効）とゼロ鍵の組み合わせによるマシンロックアウトを防ぐ。
+* **netboot 成果物の動的解決**: `fetch_netboot()` は Ubuntu のポイントリリースによる可変ファイル名（例: `ubuntu-24.04.4-live-server-amd64.iso` および `ubuntu-24.04.4-netboot-amd64.tar.gz`）を HTML ディレクトリリスティングから動的に抽出する。固定名を推測して古いバージョンや存在しないファイルをダウンロードするリスクを回避する。
 
 ### Testing Strategy
 
 * `scripts/bootstrap.sh`: Docker コンテナ（`tests/bootstrap/`）上で authorized_keys マージロジックの回帰テストを行う。
-* `scripts/workers/install.js`: Miniflare を用いたユニットテスト（`install.test.js`）で正常系・GitHub取得失敗・整合性チェック失敗の3系統を検証する。
-* Ansible プレイブック: `ansible-playbook --syntax-check` で構文検証する。実機適用は検証用 VPS またはローカルVMで行う。
+* `scripts/pxe-server/render-autoinstall.sh`: Docker コンテナ（`tests/pxe-server/`）上で user-data / meta-data のレンダリング、YAML 構文検証、パスワードハッシュ埋め込み、Zero-key Lockout Guard の回帰テストを行う。
+* `scripts/pxe-server/fetch-netboot.sh`: ネットワークアクセス（ISO は約3GB）が必要なため Docker 回帰テストの対象外とし、手動スモークテストでダウンロード・検証・冪等性を確認する。
 
 ### Out of Scope (今後の拡張)
 
@@ -226,7 +259,11 @@ dotfiles-core の Makefile はただのディスパッチャーに徹し、make 
 
 ### 1. Dual-Path Provisioning
 
-物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。物理PCはブートストラップスクリプトをダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行するフロー、VPSは操作PCからのAnsibleのみで完結させる。
+物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。
+
+* **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを実行する。操作 PC 上でエフェメラルな PXE/TFTP/HTTP サーバーを起動し、Ubuntu Server autoinstall (subiquity) 経由でユーザー作成・SSH 鍵登録までを自動化する。
+* **物理 PC（フォールバック）**: PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）を Cloudflare Workers 経由でダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行する。
+* **VPS**: 操作 PC から Ansible のみで完結させる。
 
 ### 2. Idempotent authorized_keys Merge
 
