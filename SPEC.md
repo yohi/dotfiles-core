@@ -21,7 +21,10 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
     8. dotfiles-ai: opencode, cursor, claude, gemini などのAIエージェント設定群
     9. dotfiles-gnome (Optional): GNOME拡張、ショートカット、dconf設定、Mozc等のOS依存GUI設定
 * **シークレット管理**: bw (Bitwarden CLI) を使用した動的取得。ローカルへの平文シークレットファイルの手動配置を廃止する。
-* **新規マシンの初期セットアップ**: まっさらな Ubuntu マシン（物理 PC / VPS）に対し、Ansible を用いて OS レベルの初期セットアップ（ユーザー作成、SSH ハードニング、dotfiles-core のクローン）を自動化する。物理 PC は同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを推奨とし、VPS は操作 PC から Ansible のみで完結させる。PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）をダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行して SSH 接続準備を行うレガシー経路も利用できる。
+* **新規マシンの初期セットアップ**: まっさらな Ubuntu マシン（物理 PC / VPS）に対し、Ansible を用いて OS レベルの初期セットアップ（ユーザー作成、SSH ハードニング、dotfiles-core のクローン）を自動化する。
+    * **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを実行する。OS インストールからユーザー作成・SSH 鍵登録までを自動化し、SSH 接続可能な状態にする。
+    * **物理 PC（レガシー/フォールバック）**: PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）をダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行する。
+    * **VPS**: 操作 PC から Ansible のみで完結させる。
 
 # Tech Stack
 
