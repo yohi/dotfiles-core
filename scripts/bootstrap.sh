@@ -215,9 +215,9 @@ main() {
     # shellcheck source=/dev/null
     source /etc/os-release
     if [[ "${ID:-}" != "ubuntu" ]] ||
-        [[ "${VERSION_ID:-}" != "22.04" && "${VERSION_ID:-}" != "24.04" ]]; then
+        [[ "${VERSION_ID:-}" != "22.04" && "${VERSION_ID:-}" != "24.04" && "${VERSION_ID:-}" != "26.04" ]]; then
         echo "ERROR: Unsupported OS: ${ID:-unknown} ${VERSION_ID:-unknown}." >&2
-        echo "ERROR: Ubuntu 22.04 or 24.04 is required." >&2
+        echo "ERROR: Ubuntu 22.04, 24.04, or 26.04 is required." >&2
         exit 1
     fi
 

@@ -31,11 +31,11 @@ hash_password_interactive() {
     read -rs -p "確認のためもう一度入力してください: " pw2
     echo >&2
 
-    if [ "${pw1}" != "${pw2}" ]; then
+    if [[ "${pw1}" != "${pw2}" ]]; then
         echo "ERROR: パスワードが一致しません" >&2
         return 1
     fi
-    if [ -z "${pw1}" ]; then
+    if [[ -z "${pw1}" ]]; then
         echo "ERROR: パスワードは空にできません" >&2
         return 1
     fi
@@ -57,11 +57,11 @@ fetch_github_keys() {
     local github_user="$1"
     local payload
 
-    if [ -z "${github_user}" ]; then
+    if [[ -z "${github_user}" ]]; then
         return 1
     fi
 
-    payload="$(curl --proto '=https' --proto-redir '=https' -fsSL "https://github.com/${github_user}.keys")"
+    payload="$(curl --proto '=https' --proto-redir '=https' -fsSL --max-time 60 "https://github.com/${github_user}.keys")"
     if ! validate_pubkeys "${payload}"; then
         echo "ERROR: https://github.com/${github_user}.keys did not return a valid key set" >&2
         return 1
@@ -83,28 +83,35 @@ build_ssh_keys_yaml() {
     local github_user="$2"
     local key github_keys emitted=0
 
-    if [ ! -f "${operator_pubkey_file}" ]; then
+    if [[ ! -f "${operator_pubkey_file}" ]]; then
         echo "ERROR: operator SSH public key file not found: ${operator_pubkey_file}" >&2
         return 1
     fi
 
-    while IFS= read -r key || [ -n "${key}" ]; do
-        if [ -n "${key//[[:space:]]/}" ]; then
+    local operator_keys
+    operator_keys="$(cat "${operator_pubkey_file}")"
+    if ! validate_pubkeys "${operator_keys}"; then
+        echo "ERROR: operator SSH public key file contains empty or invalid keys: ${operator_pubkey_file}" >&2
+        return 1
+    fi
+
+    while IFS= read -r key || [[ -n "${key}" ]]; do
+        if [[ -n "${key//[[:space:]]/}" ]]; then
             printf '      - %s\n' "${key}"
             emitted=1
         fi
-    done < "${operator_pubkey_file}"
+    done <<< "${operator_keys}"
 
     if github_keys="$(fetch_github_keys "${github_user}")"; then
-        while IFS= read -r key || [ -n "${key}" ]; do
-            if [ -n "${key//[[:space:]]/}" ]; then
+        while IFS= read -r key || [[ -n "${key}" ]]; do
+            if [[ -n "${key//[[:space:]]/}" ]]; then
                 printf '      - %s\n' "${key}"
                 emitted=1
             fi
         done <<< "${github_keys}"
     fi
 
-    if [ "${emitted}" -eq 0 ]; then
+    if [[ "${emitted}" -eq 0 ]]; then
         echo "ERROR: no SSH public keys resolved from ${operator_pubkey_file} or GitHub; refusing to render an autoinstall config with allow-pw:false and zero keys (would lock out the target machine)" >&2
         return 1
     fi
@@ -122,7 +129,7 @@ render_autoinstall() {
     local out_dir="$6"
     local ssh_keys_yaml
 
-    if [ -z "${username}" ] || [ -z "${hostname}" ] || [ -z "${password_hash}" ]; then
+    if [[ -z "${username}" ]] || [[ -z "${hostname}" ]] || [[ -z "${password_hash}" ]]; then
         echo "ERROR: username, hostname, and password_hash are required" >&2
         return 1
     fi
@@ -165,26 +172,30 @@ render_autoinstall() {
 main() {
     set -euo pipefail
     local username="" hostname="" ssh_pubkey_file="" github_user="" password_hash="" out_dir=""
+    local arg
 
-    while [ $# -gt 0 ]; do
-        case "$1" in
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        case "${arg}" in
             --username) username="$2"; shift 2 ;;
             --hostname) hostname="$2"; shift 2 ;;
             --ssh-pubkey-file) ssh_pubkey_file="$2"; shift 2 ;;
             --github-user) github_user="$2"; shift 2 ;;
             --password-hash) password_hash="$2"; shift 2 ;;
             --out-dir) out_dir="$2"; shift 2 ;;
-            *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
+            *) echo "ERROR: unknown argument: ${arg}" >&2; exit 1 ;;
         esac
     done
 
-    if [ -z "${password_hash}" ]; then
-        password_hash="$(hash_password_interactive)"
+    if [[ -z "${password_hash}" ]]; then
+        password_hash="$(hash_password_interactive)" || exit 1
     fi
 
-    render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${out_dir}"
+    if ! render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${out_dir}"; then
+        return 1
+    fi
+    return 0
 }
-
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

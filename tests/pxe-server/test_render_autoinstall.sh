@@ -18,20 +18,24 @@ TESTS_RUN=0
 TESTS_FAILED=0
 
 pass() {
+    local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
-    printf 'ok    - %s\n' "$1"
+    printf 'ok    - %s\n' "${msg}"
+    return 0
 }
-
 fail() {
+    local msg="$1"
     TESTS_RUN=$((TESTS_RUN + 1))
     TESTS_FAILED=$((TESTS_FAILED + 1))
-    printf 'NOT OK - %s\n' "$1" >&2
-    if [ -n "${2:-}" ]; then
-        printf '         %s\n' "$2" >&2
+    printf 'NOT OK - %s\n' "${msg}" >&2
+    local msg2="${2:-}"
+    if [[ -n "${msg2}" ]]; then
+        printf '         %s\n' "${msg2}" >&2
     fi
+    return 0
 }
 
-if [ ! -f "${RENDER_SH}" ]; then
+if [[ ! -f "${RENDER_SH}" ]]; then
     echo "FATAL: render-autoinstall.sh not found: ${RENDER_SH}" >&2
     exit 1
 fi
@@ -50,7 +54,7 @@ done
 # ---- render_autoinstall: happy path -----------------------------------------
 
 OUT_DIR="$(mktemp -d)"
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY operator@pc" > "${OUT_DIR}/operator.pub"
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/ operator@pc" > "${OUT_DIR}/operator.pub"
 
 if render_autoinstall "y_ohi" "ubuntu-pxe" "${OUT_DIR}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR}"; then
     pass "render_autoinstall exits 0 with valid inputs"
@@ -58,13 +62,13 @@ else
     fail "render_autoinstall exits 0 with valid inputs"
 fi
 
-if [ -f "${OUT_DIR}/user-data" ]; then
+if [[ -f "${OUT_DIR}/user-data" ]]; then
     pass "user-data is created"
 else
     fail "user-data is created"
 fi
 
-if [ -f "${OUT_DIR}/meta-data" ]; then
+if [[ -f "${OUT_DIR}/meta-data" ]]; then
     pass "meta-data is created"
 else
     fail "meta-data is created"
@@ -82,13 +86,23 @@ else
     fail "user-data contains the requested username"
 fi
 
-if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY' "${OUT_DIR}/user-data"; then
+if grep -q 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/' "${OUT_DIR}/user-data"; then
     pass "user-data embeds the operator's SSH public key"
 else
     fail "user-data embeds the operator's SSH public key"
 fi
 
-if grep -Fq 'password: "$6$fakehash$abcdefgh"' "${OUT_DIR}/user-data"; then
+set +u
+python3 - "$OUT_DIR" <<"PY"
+import sys, os
+out_dir = sys.argv[1]
+text = open(os.path.join(out_dir, "user-data")).read()
+target = "password: " + chr(39) + "$6$fakehash$abcdefgh" + chr(39)
+sys.exit(0 if target in text else 1)
+PY
+_password_hash_ok=$?
+set -u
+if [[ "${_password_hash_ok}" -eq 0 ]]; then
     pass "user-data embeds the password hash verbatim (including \$ characters)"
 else
     fail "user-data embeds the password hash verbatim (including \$ characters)"
@@ -105,8 +119,7 @@ rm -rf "${OUT_DIR}"
 # ---- render_autoinstall: rejects missing required fields -------------------
 
 OUT_DIR2="$(mktemp -d)"
-echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPERATORKEYEXAMPLEONLY operator@pc" > "${OUT_DIR2}/operator.pub"
-
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/ operator@pc" > "${OUT_DIR2}/operator.pub"
 if render_autoinstall "" "ubuntu-pxe" "${OUT_DIR2}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR2}" 2>/dev/null; then
     fail "render_autoinstall rejects an empty username"
 else
@@ -144,14 +157,14 @@ else
 fi
 rm -rf "${WS_KEY_DIR}"
 
-# ---- Summary -----------------------------------------------------------------
+# ---- Summary ----------------------------------------------------------------
 
 echo ""
 echo "==================================================="
 echo "  ${TESTS_RUN} tests run, ${TESTS_FAILED} failed"
 echo "==================================================="
 
-if [ "${TESTS_FAILED}" -gt 0 ]; then
+if [[ "${TESTS_FAILED}" -gt 0 ]]; then
     exit 1
 fi
 exit 0
