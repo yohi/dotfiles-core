@@ -153,16 +153,16 @@ render_autoinstall() {
     AI_SSH_KEYS_YAML="${ssh_keys_yaml}" \
         envsubst '${AI_HOSTNAME} ${AI_USERNAME} ${AI_PASSWORD_HASH} ${AI_SSH_KEYS_YAML}' \
         < "${TEMPLATE_DIR}/autoinstall.yaml.tmpl" \
-        > "${out_dir}/user-data"
+        > "${out_dir}/user-data" || return 1
 
     AI_HOSTNAME="${hostname}" \
     AI_INSTANCE_ID="${hostname}-$(date +%s)" \
         envsubst '${AI_HOSTNAME} ${AI_INSTANCE_ID}' \
         < "${TEMPLATE_DIR}/meta-data.tmpl" \
-        > "${out_dir}/meta-data"
+        > "${out_dir}/meta-data" || return 1
 
-    if ! python3 -c "import yaml,sys; yaml.safe_load(open('${out_dir}/user-data'))"; then
-        echo "ERROR: generated user-data is not valid YAML" >&2
+    if ! python3 -c 'import yaml,sys; data=yaml.safe_load(open(sys.argv[1])); sys.exit(0 if data is not None else 1)' "${out_dir}/user-data"; then
+        echo "ERROR: generated user-data is not valid YAML or is empty" >&2
         return 1
     fi
 
