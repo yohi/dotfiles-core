@@ -18,6 +18,10 @@
 - `.env` は `.gitignore` に追加してコミット対象外とする
 - `run-pxe.sh` はホスト側の対話式ランチャーとして維持する
 
+## 実装との同期
+
+この計画の実装では、リポジトリルートをビルドコンテキストにするため、ignore ファイルは `scripts/pxe-server/Dockerfile.dockerignore` を使用する。Dockerfile は `scripts/bootstrap.sh` もコピーする。SSH 公開鍵の環境例は `${HOME}/.ssh/id_ed25519.pub` とし、通常停止は `docker compose ... down`、キャッシュ破棄時だけ `down -v` とする。Docker daemon を使わない回帰テストは `tests/pxe-server/test_docker_support.sh` で実行し、Docker build と実機 PXE ブートは別途受入確認する。
+
 ## File Structure
 
 ### 新規作成
@@ -30,7 +34,7 @@
 | `scripts/pxe-server/docker-entrypoint.sh` | 環境変数を `pxe-serve.sh` のコマンドライン引数に変換し、必須チェックを行う |
 | `scripts/pxe-server/gen-password-hash.sh` | ホスト側で `openssl passwd -6` を使ってパスワードハッシュを生成する |
 | `scripts/pxe-server/README.md` | Docker 対応の起動・停止・設定手順を記載する |
-| `scripts/pxe-server/.dockerignore` | ビルドコンテキストから不要なファイルを除外する |
+| `scripts/pxe-server/Dockerfile.dockerignore` | リポジトリルートのビルドコンテキストから不要なファイルを除外する |
 
 ### 変更
 
@@ -40,10 +44,10 @@
 
 ---
 
-## Task 1: `.dockerignore` の作成
+## Task 1: `Dockerfile.dockerignore` の作成
 
 **Files:**
-- Create: `scripts/pxe-server/.dockerignore`
+- Create: `scripts/pxe-server/Dockerfile.dockerignore`
 
 **Interfaces:**
 - Consumes: リポジトリルートのビルドコンテキスト
@@ -52,10 +56,12 @@
 - [ ] **Step 1: ファイルを作成する**
 
 ```dockerignore
-# Git / CI
+# Git / CI / local configuration
 .git
 .github
 .gitignore
+.env
+*.env
 
 # Editor / IDE
 .vscode
@@ -83,16 +89,16 @@ docs
 
 Run:
 ```bash
-docker build -f scripts/pxe-server/Dockerfile --target=precontext -t pxe-precontext .
+./tests/pxe-server/test_docker_support.sh
 ```
 
-(注: `.dockerignore` の効果は実際に `docker build` した時に確認する。Task 3 で実施。)
+(注: Dockerfile 固有の ignore ファイルの静的契約は daemon-free harness で確認する。実際の Docker build は受入確認で実施する。)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add scripts/pxe-server/.dockerignore
-git commit -m "chore: PXEサーバー用 .dockerignore を追加"
+git add scripts/pxe-server/Dockerfile.dockerignore
+git commit -m "chore: PXEサーバー用 Dockerfile ignore を追加"
 ```
 
 ---
@@ -129,6 +135,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+COPY scripts/bootstrap.sh /app/scripts/bootstrap.sh
 COPY scripts/pxe-server/ /app/scripts/pxe-server/
 
 # Ensure the cache directory exists and is writable by the entrypoint
@@ -205,6 +212,10 @@ fi
 PASSWORD_HASH="${PASSWORD_HASH:-}"
 HTTP_PORT="${HTTP_PORT:-8080}"
 GITHUB_USER="${GITHUB_USER:-}"
+
+if [[ -z "${PASSWORD_HASH}" ]] && [[ ! -t 0 ]]; then
+    fail "PASSWORD_HASH is required when stdin is not a TTY"
+fi
 
 ARGS=(
     --iface "${PXE_IFACE}"
@@ -357,12 +368,12 @@ services:
       - NET_RAW
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
-      - ${SSH_PUBKEY_FILE:-~/.ssh/id_ed25519.pub}:/app/ssh_key.pub:ro
+      - ${SSH_PUBKEY_FILE:?SSH_PUBKEY_FILE must be set}:/app/ssh_key.pub:ro
     environment:
-      PXE_IFACE: ${PXE_IFACE}
-      PXE_SUBNET: ${PXE_SUBNET}
-      PXE_NETMASK: ${PXE_NETMASK}
-      OPERATOR_IP: ${OPERATOR_IP}
+      PXE_IFACE: ${PXE_IFACE:?PXE_IFACE must be set}
+      PXE_SUBNET: ${PXE_SUBNET:?PXE_SUBNET must be set}
+      PXE_NETMASK: ${PXE_NETMASK:?PXE_NETMASK must be set}
+      OPERATOR_IP: ${OPERATOR_IP:?OPERATOR_IP must be set}
       VERSION: ${VERSION:-24.04}
       USERNAME: ${USERNAME:-y_ohi}
       TARGET_HOSTNAME: ${TARGET_HOSTNAME:-ubuntu-pxe}
@@ -375,13 +386,14 @@ services:
 
 volumes:
   pxe-cache:
+    name: pxe-cache
 ```
 
 - [ ] **Step 2: `docker compose config` で構文を確認する**
 
 Run:
 ```bash
-cd scripts/pxe-server && docker compose config
+docker compose -f scripts/pxe-server/compose.yaml --env-file scripts/pxe-server/compose.env.example config
 ```
 
 Expected: エラーなしで設定が出力される
@@ -430,7 +442,7 @@ USERNAME=y_ohi
 TARGET_HOSTNAME=ubuntu-pxe
 
 # Path to the operator's SSH public key on the host
-SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub
+SSH_PUBKEY_FILE=${HOME}/.ssh/id_ed25519.pub
 
 # Optional GitHub username to fetch additional SSH public keys
 GITHUB_USER=
@@ -467,14 +479,14 @@ git commit -m "docs: PXEサーバー用 .env テンプレートを追加"
 
 ```gitignore
 # PXE server local configuration (contains password hash)
-.env
+/.env
 ```
 
 - [ ] **Step 2: 既存の `.gitignore` を確認して、重複がないことを確認する**
 
 Run:
 ```bash
-grep -n "^\.env" .gitignore || true
+grep -n "^/\.env$" .gitignore || true
 ```
 
 Expected: 追加した行が存在する
@@ -525,7 +537,7 @@ cp scripts/pxe-server/compose.env.example .env
 docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 
 # 5. 別端末から停止
-docker compose -f scripts/pxe-server/compose.yaml down -v
+docker compose -f scripts/pxe-server/compose.yaml down
 ```
 
 ## ネットワーク
@@ -541,7 +553,7 @@ docker compose -f scripts/pxe-server/compose.yaml down -v
 
 ## キャッシュ
 
-netboot tarball と ISO は Docker named volume `pxe-cache` に保存される。不要になった場合は以下で削除する。
+netboot tarball と ISO は Docker named volume `pxe-cache` に保存される。通常停止ではこのキャッシュを保持し、不要になった場合だけ以下で削除する。
 
 ```bash
 docker compose -f scripts/pxe-server/compose.yaml down -v
@@ -577,25 +589,34 @@ git commit -m "docs: PXEサーバー Docker 運用手順を追加"
 - Consumes: これまでに作成したすべてのファイル
 - Produces: 動作確認結果
 
-- [ ] **Step 1: ビルドテストを実行する**
+- [ ] **Step 1: daemon-free Docker サポートテストを実行する**
 
 Run:
 ```bash
-docker compose -f scripts/pxe-server/compose.yaml config
+./tests/pxe-server/test_docker_support.sh
+```
+
+Expected: Docker daemon を起動せずにエントリポイント、パスワードヘルパー、Compose の静的契約が成功する
+
+- [ ] **Step 2: Compose 構成を確認する**
+
+Run:
+```bash
+docker compose -f scripts/pxe-server/compose.yaml --env-file scripts/pxe-server/compose.env.example config
 ```
 
 Expected: エラーなし
 
-- [ ] **Step 2: イメージビルドテストを実行する**
+- [ ] **Step 3: イメージビルドテストを実行する**
 
 Run:
 ```bash
-docker compose -f scripts/pxe-server/compose.yaml build
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env build
 ```
 
 Expected: ビルドが成功する
 
-- [ ] **Step 3: エントリポイントの引数変換を確認する**
+- [ ] **Step 4: エントリポイントの引数変換を確認する**
 
 Run:
 ```bash
@@ -629,16 +650,16 @@ docker run --rm --net=host \
   dotfiles-pxe-server
 ```
 
-（注: このテストは `docker-entrypoint.sh` が環境変数から構築した固定の引数をモック `pxe-serve.sh` に渡す動作を検証する。`/dev/null` ではなく `mktemp` で作成した通常ファイルをマウントすることで、`[[ -f "${SSH_PUBKEY_FILE}" ]]` のチェックを通過し、`--ssh-key-path` 引数の生成も含めて検証可能にしている。`docker run` への追加 CLI 引数を `pxe-serve.sh` に転送する前提はない。）
+（注: このテストは `docker-entrypoint.sh` が環境変数から構築した固定の引数をモック `pxe-serve.sh` に渡す動作を検証する。`/dev/null` ではなく `mktemp` で作成した通常ファイルをマウントすることで、`[[ -f "${SSH_PUBKEY_FILE}" ]]` のチェックを通過し、`--ssh-pubkey-file` 引数の生成も含めて検証可能にしている。`docker run` への追加 CLI 引数を `pxe-serve.sh` に転送する前提はない。）
 
-- [ ] **Step 4: 実際のネットワーク環境での手動PXEブートテスト**
+- [ ] **Step 5: 実際のネットワーク環境での手動PXEブートテスト**
 
 条件:
 - 実機またはVMを同じLANに接続
 - 対象をネットワークブート
 - ISO/user-data/meta-data が取得でき、autoinstallが進行することを確認
 
-- [ ] **Step 5: Commit 確認**
+- [ ] **Step 6: Commit 確認**
 
 ```bash
 git status

@@ -84,7 +84,7 @@ netboot tarball と ISO のダウンロードは、Docker named volume で永続
 | `scripts/pxe-server/docker-entrypoint.sh` | 環境変数を `pxe-serve.sh` 引数に変換する薄いラッパー |
 | `scripts/pxe-server/gen-password-hash.sh` | ホスト側でパスワードハッシュを生成するヘルパー |
 | `scripts/pxe-server/README.md` | Docker対応の運用手順 |
-| `scripts/pxe-server/.dockerignore` | 不要なファイルをビルドコンテキストから除外 |
+| `scripts/pxe-server/Dockerfile.dockerignore` | ビルドコンテキストから不要なファイルを除外する（リポジトリルートをcontextとする） |
 
 ### 変更ファイル
 
@@ -118,6 +118,16 @@ netboot tarball と ISO のダウンロードは、Docker named volume で永続
 - `gettext-base`（`envsubst` 用）
 - `iproute2`
 - `ca-certificates`
+
+### コピーするファイル
+
+以下のファイルをイメージにコピーする。
+
+- `scripts/pxe-server/` 配下のスクリプト・テンプレート
+- `scripts/bootstrap.sh`（`pxe-serve.sh` の依存）
+
+リポジトリルートをビルドコンテキストとするため、`Dockerfile.dockerignore` で `.env` や `.git`、`tests`、`docs`、既存の PXE キャッシュなどを除外する。
+
 
 ### イメージ内構成
 
@@ -153,17 +163,17 @@ services:
       - NET_RAW
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
-      - ${SSH_PUBKEY_FILE:-~/.ssh/id_ed25519.pub}:/app/ssh_key.pub:ro
+      - ${SSH_PUBKEY_FILE:?SSH_PUBKEY_FILE must be set}:/app/ssh_key.pub:ro
     environment:
-      PXE_IFACE: ${PXE_IFACE}
-      PXE_SUBNET: ${PXE_SUBNET}
-      PXE_NETMASK: ${PXE_NETMASK}
-      OPERATOR_IP: ${OPERATOR_IP}
+      PXE_IFACE: ${PXE_IFACE:?PXE_IFACE must be set}
+      PXE_SUBNET: ${PXE_SUBNET:?PXE_SUBNET must be set}
+      PXE_NETMASK: ${PXE_NETMASK:?PXE_NETMASK must be set}
+      OPERATOR_IP: ${OPERATOR_IP:?OPERATOR_IP must be set}
       VERSION: ${VERSION:-24.04}
       USERNAME: ${USERNAME:-y_ohi}
       TARGET_HOSTNAME: ${TARGET_HOSTNAME:-ubuntu-pxe}
-      PASSWORD_HASH: ${PASSWORD_HASH}
-      GITHUB_USER: ${GITHUB_USER}
+      PASSWORD_HASH: ${PASSWORD_HASH:-}
+      GITHUB_USER: ${GITHUB_USER:-}
       HTTP_PORT: ${HTTP_PORT:-8080}
       SSH_PUBKEY_FILE: /app/ssh_key.pub
     stdin_open: true
@@ -171,6 +181,7 @@ services:
 
 volumes:
   pxe-cache:
+    name: pxe-cache
 ```
 
 ### 設定ファイルの分離
@@ -185,7 +196,7 @@ OPERATOR_IP=192.168.1.10
 VERSION=24.04
 USERNAME=y_ohi
 TARGET_HOSTNAME=ubuntu-pxe
-SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub
+SSH_PUBKEY_FILE=${HOME}/.ssh/id_ed25519.pub
 GITHUB_USER=
 HTTP_PORT=8080
 PASSWORD_HASH=
@@ -220,8 +231,11 @@ docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 ### 停止
 
 ```bash
-# 別端末から
-docker compose -f scripts/pxe-server/compose.yaml down -v
+# 別端末から（キャッシュを保持して停止）
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env down
+
+# キャッシュごと破棄する場合
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v
 ```
 
 `pxe-serve.sh` の `trap cleanup` が SIGTERM を受け取って、dnsmasq と HTTPサーバーを停止し、作業ディレクトリを削除する。
@@ -237,6 +251,7 @@ docker compose -f scripts/pxe-server/compose.yaml down -v
 ### 自動テスト（可能な範囲）
 
 - Dockerfile のビルドが成功することを確認する。
+- `scripts/pxe-server/docker-entrypoint.sh` の環境変数から引数への変換を、テストハーネス `tests/pxe-server/test_docker_support.sh` で確認する（Docker daemon を起動せずに検証可能）。
 - `render-autoinstall.sh` の既存テストは維持する。
 
 ### 手動テスト
@@ -253,6 +268,7 @@ docker compose -f scripts/pxe-server/compose.yaml down -v
 - コンテナは最小限の capabilities のみ付与する。
 - SSH公開鍵は read-only でマウントする。
 - HTTPサーバーはPXEインストール用途のため、平文HTTPを使用する（`pxe-serve.sh` コメントと同じ理由）。
+- `Dockerfile.dockerignore` により、ローカルの `.env` や PXE キャッシュ、ドキュメントがイメージに含まれないようにする。
 
 ## 既存機能との関係
 
