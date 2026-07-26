@@ -122,8 +122,6 @@ docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 `COMPOSE_PROJECT_NAME` に固有の名前を設定してください。未設定の場合、イメージタグ
 とキャッシュボリューム名が固定値となり、別チェックアウト間で上書き・競合が発生する
 可能性があります。
-ままにすると起動は失敗します。必須環境変数の不足や `SSH_PUBKEY_FILE` の不在も即時
-エラーになります。
 
 #### 停止と受入確認
 

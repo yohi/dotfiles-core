@@ -200,9 +200,7 @@ ProxyDHCP は既存ルーターの DHCP に対して PXE 特有のオプショ�
 
 PR 検討段階では `NET_ADMIN` capability も候補に上がったが、実装検証の結果 `NET_BIND_SERVICE`（特権ポートバインド）と `NET_RAW`（RAW ソケット）のみで `dnsmasq` の ProxyDHCP / TFTP 動作が可能であったため、`NET_ADMIN` は除外した。`--privileged` は原則として使用しない。
 
-##### キャッシュ方式の選定理由
-
-netboot tarball と ISO のダウンロードを毎回行うと遅いが、ホストの `scripts/pxe-server/.cache/` 配下にファイルを残したくない。Docker named volume `pxe-cache` は `docker volume rm pxe-cache` 一発で削除でき、ホストを汚さない。
+netboot tarball と ISO のダウンロードを毎回行うと遅いが、ホストの `scripts/pxe-server/.cache/` 配下にファイルを残したくない。Docker named volume `pxe-cache` は `docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v` 一発で削除でき、ホストを汚さない。
 
 ##### ビルドコンテキストと ignore の選定理由
 
