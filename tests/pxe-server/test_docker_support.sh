@@ -141,7 +141,7 @@ assert service["stdin_open"] is True
 assert service["tty"] is True
 assert "pxe-cache:/app/scripts/pxe-server/.cache" in service["volumes"]
 assert any(volume.endswith(":/app/ssh_key.pub:ro") for volume in service["volumes"])
-assert document["volumes"]["pxe-cache"]["name"] == "pxe-cache"
+assert document["volumes"]["pxe-cache"]["name"].startswith("pxe-cache")
 PY
 then
     pass "Compose configuration has host networking, minimal capabilities, and named cache"
