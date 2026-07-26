@@ -18,6 +18,9 @@ USERNAME="${USERNAME:-}"
 TARGET_HOSTNAME="${TARGET_HOSTNAME:-}"
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/app/ssh_key.pub}"
 PASSWORD_HASH="${PASSWORD_HASH:-}"
+if [[ -z "${PASSWORD_HASH}" ]] && [[ -f /app/password.hash ]]; then
+    PASSWORD_HASH="$(cat /app/password.hash | xargs)"
+fi
 GITHUB_USER="${GITHUB_USER:-}"
 HTTP_PORT="${HTTP_PORT:-8080}"
 

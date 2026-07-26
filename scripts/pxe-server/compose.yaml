@@ -11,6 +11,7 @@ services:
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
       - ${SSH_PUBKEY_FILE:?SSH_PUBKEY_FILE must be set}:/app/ssh_key.pub:ro
+      - ${PASSWORD_HASH_FILE:-/dev/null}:/app/password.hash:ro
     environment:
       PXE_IFACE: ${PXE_IFACE:?PXE_IFACE must be set}
       PXE_SUBNET: ${PXE_SUBNET:?PXE_SUBNET must be set}
@@ -19,7 +20,6 @@ services:
       VERSION: ${VERSION:-24.04}
       USERNAME: ${USERNAME:-y_ohi}
       TARGET_HOSTNAME: ${TARGET_HOSTNAME:-ubuntu-pxe}
-      PASSWORD_HASH: ${PASSWORD_HASH:-}
       GITHUB_USER: ${GITHUB_USER:-}
       HTTP_PORT: ${HTTP_PORT:-8080}
       SSH_PUBKEY_FILE: /app/ssh_key.pub

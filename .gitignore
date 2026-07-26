@@ -23,3 +23,4 @@ scripts/pxe-server/.cache/
 
 # PXE server local configuration (contains password hash)
 /.env
+/.password_hash
