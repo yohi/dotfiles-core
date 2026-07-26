@@ -61,7 +61,13 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 
 まだ dotfiles-core を導入していない、まっさらな Ubuntu マシン（物理 PC / VPS）を用意する場合は、`ansible/` 配下のセットアップフローを使用します。
 
-- **物理 PC**（外部から SSH 接続できない場合）: 同一 LAN 上であれば、`scripts/pxe-server/run-pxe.sh` を使った **PXE 無人インストール**（OS インストールからユーザー作成・SSH 鍵登録まで自動化）が推奨です。操作 PC 上で一時的な PXE/TFTP/HTTP サーバーを起動し、ターゲット PC の電源を入れるだけでセットアップが始まります。詳細は [`ansible/README.md`](ansible/README.md) を参照してください。  
+- **物理 PC**（外部から SSH 接続できない場合）: 同一 LAN 上であれば、
+  `scripts/pxe-server/run-pxe.sh` を使った **PXE 無人インストール**
+  （OS インストールからユーザー作成・SSH 鍵登録まで自動化）が推奨です。操作 PC 上で
+  一時的な PXE/TFTP/HTTP サーバーを起動し、ターゲット PC の電源を入れるだけで
+  セットアップが始まります。Docker コンテナ経由で同じ PXE サーバーを起動する経路も
+  利用できます。詳細は [`ansible/README.md`](ansible/README.md) と後述の Docker 手順を
+  参照してください。
   PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）をダウンロードして実行するレガシー経路も利用できます。スクリプトは Cloudflare Workers（`scripts/workers/`）経由で HTTPS 配信され、`X-Script-SHA256` ヘッダによる整合性検証が可能です。
 - **VPS**（外部から SSH 接続できる場合）: ターゲット PC のコンソールには入らず、操作 PC から Ansible（`ansible/setup.yml`）のみで全て実施します。
 
@@ -71,6 +77,78 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 > このフローは「まだ Ubuntu マシンがセットアップされていない」段階を対象とします。dotfiles-core のクローンと本セットアップ（`common-setup` ロール）は Ansible が自動的に実行するため、上記フローの後に以下の Quick Start を別途実行する必要はありません。
 >
 > なお、Ubuntu 26.04 のネットブート成果物（codename: `resolute`）は執筆時点で未検証です。`fetch_netboot()` は URL の到達性を確認し、存在しない場合は明確なエラーメッセージを返して即座に失敗します。
+
+### PXE サーバー（Docker）
+
+Docker は PXE サーバーの追加実行経路です。ホストへ `dnsmasq` などを導入せずに
+起動できますが、ネイティブの `bash scripts/pxe-server/run-pxe.sh` も引き続き利用できます。
+
+#### 設計の要点
+
+Docker 対応は既存の `pxe-serve.sh` を置き換えるのではなく、Dockerfile / エントリポイント / Compose で薄くラップする「薄いラッパー」方式です。これにより、ホストへの `dnsmasq` 導入なしに PXE サーバーを起動でき、既存のネイティブ実行経路も維持します。
+
+- **ホストネットワーク**: PXE に必要な DHCP/TFTP 通信のため `network_mode: host` を使用します。
+- **最小権限**: `privileged` は使用せず、`NET_BIND_SERVICE` と `NET_RAW` の capability のみを追加します。
+- **キャッシュ分離**: netboot 成果物と ISO は Docker named volume `pxe-cache` に保存し、ホストを汚しません。
+- **設定の秘匿**: パスワードハッシュを含む `.env` は `.gitignore` で Git 管理対象外としています。
+
+#### 設定と起動
+
+Docker Engine、Docker Compose v2、同一 LAN 上の操作 PC と対象 PC、および操作 PC の
+SSH 公開鍵を用意します。リポジトリルートで環境ファイルを作成し、必須値を設定します。
+
+```bash
+cp scripts/pxe-server/compose.env.example .env
+```
+
+必須値は `PXE_IFACE`、`PXE_SUBNET`、`PXE_NETMASK`、`OPERATOR_IP`、
+`SSH_PUBKEY_FILE` です。`VERSION`、`USERNAME`、`TARGET_HOSTNAME`、`HTTP_PORT`、
+`GITHUB_USER`、`PASSWORD_HASH` は既定値または任意値として設定できます。
+
+非対話起動では、事前にパスワードハッシュを生成して `.env` の `PASSWORD_HASH` に設定します。`$` を含むハッシュは単一引用符で囲みます。
+
+```bash
+bash scripts/pxe-server/gen-password-hash.sh
+# PASSWORD_HASH='$6$...'
+
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
+```
+
+`PASSWORD_HASH` を空にした場合は、起動端末の TTY で対話入力します。非対話実行で空の
+ままにすると起動は失敗します。必須環境変数の不足や `SSH_PUBKEY_FILE` の不在も即時
+エラーになります。
+
+同じ Docker ホスト上で複数のチェックアウトを並行運用する場合は、`.env` の
+`COMPOSE_PROJECT_NAME` に固有の名前を設定してください。未設定の場合、イメージタグ
+とキャッシュボリューム名が固定値となり、別チェックアウト間で上書き・競合が発生する
+可能性があります。
+
+#### 停止と受入確認
+
+通常停止では netboot 成果物と ISO を保持する named volume `pxe-cache` を残します。
+キャッシュを破棄する場合だけ `-v` を付けます。
+
+```bash
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env down
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v
+```
+
+実際の PXE ブートはネットワーク環境とハードウェアに依存します。操作 PC と対象 PC が
+同じ LAN にあることを確認し、対象 PC で BIOS/UEFI のネットワークブートを選択して、
+ISO、`user-data`、`meta-data` の取得と無人インストール完了を確認してください。
+
+PXE の DHCP/TFTP 通信のため Docker Compose はホストネットワークを使用し、
+`NET_BIND_SERVICE` と `NET_RAW` のみを追加します。詳細な運用手順は
+[`scripts/pxe-server/README.md`](scripts/pxe-server/README.md) を参照してください。
+
+#### セキュリティとエラーハンドリング
+
+- `.env` にはパスワードハッシュが含まれるため、リポジトリにコミットしないでください（`.gitignore` で除外済み）。
+- SSH 公開鍵ファイルはコンテナに read-only でマウントされます。
+- `PASSWORD_HASH` を空にして非 TTY 環境で起動すると、即座に失敗します。対話入力を使う場合は TTY 端末から実行してください。
+- `PXE_IFACE` などの必須環境変数が不足している場合、または `SSH_PUBKEY_FILE` が存在しない場合も即座に失敗します。
+- PXE 配信は Ubuntu 無人インストールの仕様上平文 HTTP を使用します。これは Docker 化によっても変わりません。
+- 同じ Docker ホスト上で複数のチェックアウトを並行運用する場合は、`.env` の `COMPOSE_PROJECT_NAME` に固有の名前を設定してください。未設定の場合、イメージタグとキャッシュボリューム名が固定値となり、別チェックアウト間で上書き・競合が発生する可能性があります。
 
 ## ⚡ Quick Start (Bootstrap)
 

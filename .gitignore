@@ -20,3 +20,6 @@ dots
 
 # PXE server downloaded artifacts (ISOs, netboot tarballs)
 scripts/pxe-server/.cache/
+
+# PXE server local configuration (contains password hash)
+/.env

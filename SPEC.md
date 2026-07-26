@@ -36,6 +36,7 @@ Git Submodule による煩雑な管理を完全に排除し、「**メタ・リ�
 | **Symlink Manager** | Makefile内での明示的な定義 | 柔軟なパス解決と冪等性のあるリンク (`ln -sfn`) をコンポーネント単位で実現 |
 | **Secret Manager** | Bitwarden CLI (bw) | jq と組み合わせてJSONから安全に抽出 |
 | **Provisioning** | Ansible | 新規Ubuntuマシン（物理PC/VPS）の初期セットアップ（ユーザー作成、SSHハードニング、UFW設定等） |
+| **PXE Runtime** | Docker Compose | `ubuntu:24.04` の追加実行経路 |
 | **Script Distribution** | Cloudflare Workers | ブートストラップスクリプト (`scripts/bootstrap.sh`) をGitHub raw経由でHTTPS配信し、SHA-256整合性ヘッダーを付与 |
 
 > [!NOTE]
@@ -114,6 +115,7 @@ sequenceDiagram
 ブートストラップスクリプト、PXE 無人インストール、Ansible の間では以下のように責務を分離する。
 
 * **`scripts/pxe-server/` の責務 (推奨・物理 PC)**: 操作 PC 上で一時的に ProxyDHCP (dnsmasq) + TFTP + HTTP を起動し、Ubuntu Server の autoinstall (subiquity) を PXE ネットワークブートで配信する。OS インストール中にホスト名設定・ユーザー作成 (`y_ohi`)・SSH 公開鍵登録までを完了させ、`bootstrap.sh` で行っていた「SSH 接続の準備」フェーズを完全に自動化する。パスワードは `openssl passwd -6` でローカルハッシュ化されたもののみを使用し、平文は一切ディスクや argv に露出しない。
+* **Docker PXE 実行経路**: Docker の薄いラッパー経由でも同じ `pxe-serve.sh` を起動できる。ネイティブ実行を置き換えない。
 * **`scripts/bootstrap.sh` の責務 (レガシー・物理 PC)**: PXE が使えない環境でのフォールバック経路。手動 ISO インストール後のターゲット PC コンソール上で実行され、SSH 接続に必要な最小限の準備（ユーザー作成、GitHub 公開鍵取得・`authorized_keys` 管理ブロック登録、SSH ハードニング）のみを行う。PXE 経路ではユーザー作成・SSH 公開鍵登録は autoinstall、SSH ハードニングは Ansible (`common-setup` ロール) が担当するため、`bootstrap.sh` は PXE を使わない手動 ISO インストール時のみ使用される。
 * **Ansible (`common-setup` ロール) の責務 (共通)**: SSH ポート変更、dotfiles-core のクローン、完全なパッケージインストール、ファイアウォール設定、GitHub Deploy Key の登録。`bootstrap.sh` や autoinstall の late-commands はこれらを一切実施しない。特に SSH ハードニング（`PermitRootLogin no` / `PasswordAuthentication no` / ポート変更）については Ansible が単一のソース・オブ・トゥルースとして担い、autoinstall の late-commands では重複させない。
 
@@ -128,6 +130,13 @@ dotfiles-core/
 │   │   ├── pxe-serve.sh          # エフェメラル PXE/TFTP/HTTP オーケストレータ (フォアグラウンド実行)
 │   │   ├── fetch-netboot.sh      # Ubuntu netboot成果物の取得・検証スクリプト
 │   │   ├── render-autoinstall.sh # user-data/meta-data レンダリングスクリプト
+│   │   ├── Dockerfile             # PXE サーバーのコンテナイメージ定義
+│   │   ├── Dockerfile.dockerignore # Docker ビルドコンテキスト除外定義
+│   │   ├── compose.yaml           # Compose 定義
+│   │   ├── compose.env.example    # Compose 用環境変数テンプレート
+│   │   ├── docker-entrypoint.sh   # 環境変数を CLI 引数へ変換
+│   │   ├── gen-password-hash.sh   # SHA-512 ハッシュ生成ヘルパー
+│   │   ├── README.md              # PXE Docker 運用手順
 │   │   └── templates/            # envsubst テンプレート群 (dnsmasq.conf, grub.cfg, pxelinux.cfg, autoinstall.yaml, meta-data)
 │   └── workers/
 │       ├── install.js            # Cloudflare Workers 配信スクリプト (GitHub raw中継 + SHA-256ヘッダー付与)
@@ -141,8 +150,61 @@ dotfiles-core/
 │   └── roles/common-setup/       # 両プレイブック共通の本セットアップタスク
 ├── tests/
 │   ├── bootstrap/                # bootstrap.sh の Docker ベース回帰テスト
-│   └── pxe-server/               # render-autoinstall.sh の Docker ベース回帰テスト
+│   └── pxe-server/               # Docker 実行経路と render-autoinstall.sh の回帰テスト
 ```
+
+### PXE Server Docker Runtime
+
+Docker 実行経路は既存の `pxe-serve.sh` を流用する薄いラッパーである。設定を
+イメージへ重複実装したり、supervisor を導入したりしない。`Dockerfile` は
+`ubuntu:24.04` を基盤に `dnsmasq`、`python3`、`curl`、`gettext-base`、`openssl`、
+`openssh-client`、`iproute2`、`python3-yaml` を導入し、`scripts/bootstrap.sh` と
+PXE スクリプト群をコピーする。
+
+`compose.yaml` は ProxyDHCP/TFTP のため `network_mode: host` を使用する。付与する
+capability は `NET_BIND_SERVICE` と `NET_RAW` のみであり、`privileged` は使用しない。
+netboot tarball と ISO は named volume `pxe-cache` に保存し、操作 PC の SSH 公開鍵は
+`/app/ssh_key.pub` へ read-only でマウントする。
+
+Compose が `.env` の必須ネットワーク値と SSH 鍵パスを解決した後、
+`docker-entrypoint.sh` が `PXE_IFACE`、`PXE_SUBNET`、`PXE_NETMASK`、`OPERATOR_IP`、
+`VERSION`、`USERNAME`、`TARGET_HOSTNAME` と SSH 鍵の存在を検証する。エントリポイントは
+環境変数を既存 CLI 引数へ変換し、`exec pxe-serve.sh` でプロセスを置換する。
+Compose は `stdin_open: true` と `tty: true` を設定する。`PASSWORD_HASH` が空の場合は
+TTY でのみ既存の対話入力へ委譲し、非 TTY では失敗する。
+
+`exec` により Compose 停止時の SIGTERM は `pxe-serve.sh` に届く。既存の
+`trap cleanup` が dnsmasq、HTTP サーバー、一時作業領域を終了・削除する。通常の
+`docker compose ... down` は `pxe-cache` を保持し、`down -v` のみがキャッシュを
+削除する。ネイティブの `run-pxe.sh` と直接の `pxe-serve.sh` 実行は維持する。
+
+ルートをビルドコンテキストとするため、`Dockerfile.dockerignore` は `.env`、PXE
+キャッシュ、テスト、文書、大容量成果物をイメージから除外する。ルート `/.env` は
+パスワードハッシュを含み得るため Git 管理対象外とする。
+
+#### 設計判断
+
+Docker 実行経路の設計において、以下の3方式を比較検討した。
+
+| アプローチ | 評価 | 採用 |
+| :--- | :--- | :--- |
+| 薄いラッパー方式 | 既存コードを最大限流用し、変更が最小。ネイティブ実行との両立も容易。 | ✅ 採用 |
+| 構成をイメージ埋め込み方式 | 柔軟性が低く、運用用途に合わない。 | ❌ 不採用 |
+| Supervisord + マルチサービス方式 | 不要な依存増加。既存 `cleanup` トラップと競合する。 | ❌ 不採用 |
+
+##### ネットワーク方式の選定理由
+
+ProxyDHCP は既存ルーターの DHCP に対して PXE 特有のオプションを追加で返し、TFTP はポート 69 をリッスンする。これらはホストのネットワークインターフェースに直接バインドする必要があるため、`macvlan` / `ipvlan` などの要追加設定方式は採用せず、`network_mode: host` を採用した。
+
+##### 権限方式の選定理由
+
+PR 検討段階では `NET_ADMIN` capability も候補に上がったが、実装検証の結果 `NET_BIND_SERVICE`（特権ポートバインド）と `NET_RAW`（RAW ソケット）のみで `dnsmasq` の ProxyDHCP / TFTP 動作が可能であったため、`NET_ADMIN` は除外した。`--privileged` は原則として使用しない。
+
+netboot tarball と ISO のダウンロードを毎回行うと遅いが、ホストの `scripts/pxe-server/.cache/` 配下にファイルを残したくない。Docker named volume `pxe-cache` は `docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v` 一発で削除でき、ホストを汚さない。
+
+##### ビルドコンテキストと ignore の選定理由
+
+`Dockerfile` は `scripts/pxe-server/` 配下に配置するが、ビルド時に `scripts/bootstrap.sh` をコピーする必要があるため、リポジトリルートをビルドコンテキストとする。そのため、ルート `.dockerignore` の代わりに `Dockerfile.dockerignore` を使用し、ルートの `.env` や PXE キャッシュ、テスト、文書を除外する。
 
 ### Data Flow (物理PC — PXE無人インストール経路・推奨)
 
@@ -217,11 +279,25 @@ sequenceDiagram
 * **Zero-key Lockout Guard**: `build_ssh_keys_yaml()` は、オペレーター鍵ファイルが空・不正で、かつ GitHub 鍵も取得できない場合に autoinstall 設定を生成せずにエラー終了する。`allow-pw: false`（パスワード認証無効）とゼロ鍵の組み合わせによるマシンロックアウトを防ぐ。
 * **netboot 成果物の動的解決**: `fetch_netboot()` は Ubuntu のポイントリリースによる可変ファイル名（例: `ubuntu-24.04.4-live-server-amd64.iso` および `ubuntu-24.04.4-netboot-amd64.tar.gz`）を HTML ディレクトリリスティングから動的に抽出する。固定名を推測して古いバージョンや存在しないファイルをダウンロードするリスクを回避する。
 * **PXE 成果物の整合性検証境界**: ISO ファイル（例: `ubuntu-24.04.4-live-server-amd64.iso`）は Ubuntu 公式に公開された SHA-256 チェックサムと照合する。netboot tarball（例: `ubuntu-24.04.4-netboot-amd64.tar.gz`）には公開されたチェックサムエントリが存在しないため、アーカイブの整合性検証（`tar` 展開テストなど）のみを行う。これは転送・保存中の破損を検出できるが、配布元の真正性を保証するものではない。
+* **Docker 実行境界**: PXE 用の HTTP 配信は既存設計どおり平文 HTTP を使用する。
+  Docker 化してもこの信頼境界は変わらない。SSH 公開鍵は read-only マウントし、
+  コンテナは `NET_BIND_SERVICE` と `NET_RAW` のみを付与し、`privileged` を使用しない。
+* **Docker ビルド入力の分離**: `Dockerfile.dockerignore` でローカル `.env`、
+  キャッシュ、テスト、文書、大容量成果物をビルドコンテキストから除外する。`/.env` は
+  `.gitignore` で除外し、パスワードハッシュをコミットしない。
 
 ### Testing Strategy
 
 * `scripts/bootstrap.sh`: Docker コンテナ（`tests/bootstrap/`）上で authorized_keys マージロジックの回帰テストを行う。
 * `scripts/pxe-server/render-autoinstall.sh`: Docker コンテナ（`tests/pxe-server/`）上で user-data / meta-data のレンダリング、YAML 構文検証、パスワードハッシュ埋め込み、Zero-key Lockout Guard の回帰テストを行う。
+* `scripts/pxe-server/docker-entrypoint.sh`: `tests/pxe-server/test_docker_support.sh` で
+  Docker daemon を使わずに環境変数から CLI 引数への変換、TTY 分岐、Compose の
+  ネットワーク・権限・キャッシュ契約を検証する。
+* Docker Compose:
+  `docker compose -f scripts/pxe-server/compose.yaml --env-file scripts/pxe-server/compose.env.example config`
+  で構成を検証し、`docker build -f scripts/pxe-server/Dockerfile -t dotfiles-pxe-server .`
+  でイメージを検証する。実際の PXE ブートは同一 LAN 上の実機または VM で、ISO、
+  `user-data`、`meta-data` の取得と無人インストール完了を手動受入確認する。
 * `scripts/pxe-server/fetch-netboot.sh`: ネットワークアクセス（ISO は約3GB）が必要なため Docker 回帰テストの対象外とし、手動スモークテストでダウンロード・検証・冪等性を確認する。
 
 ### Out of Scope (今後の拡張)
@@ -266,7 +342,11 @@ dotfiles-core の Makefile はただのディスパッチャーに徹し、make 
 
 物理 PC（コンソールアクセスのみ）と VPS（SSH直接アクセス可）で異なる初期化経路を提供する。
 
-* **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った PXE 無人インストールを実行する。操作 PC 上でエフェメラルな PXE/TFTP/HTTP サーバーを起動し、Ubuntu Server autoinstall (subiquity) 経由でユーザー作成・SSH 鍵登録までを自動化する。PXE ブートはレガシー BIOS（PXELINUX）と UEFI（GRUB）の双方をサポートする。
+* **物理 PC（推奨）**: 同一 LAN 上で `scripts/pxe-server/run-pxe.sh` を使った
+  ネイティブ実行、または Docker Compose を使った追加実行経路で PXE 無人インストールを
+  実行する。操作 PC 上でエフェメラルな PXE/TFTP/HTTP サーバーを起動し、Ubuntu Server
+  autoinstall (subiquity) 経由でユーザー作成・SSH 鍵登録までを自動化する。PXE ブートは
+  レガシー BIOS（PXELINUX）と UEFI（GRUB）の双方をサポートする。
 * **物理 PC（フォールバック）**: PXE が使えない環境では、ターゲット PC のコンソールでブートストラップスクリプト（`scripts/bootstrap.sh`）を Cloudflare Workers 経由でダウンロードし、SHA-256 整合性検証と内容確認を行ったうえで実行する。
 * **VPS**: 操作 PC から Ansible のみで完結させる。
 

@@ -18,9 +18,11 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+COPY scripts/bootstrap.sh /app/scripts/bootstrap.sh
 COPY scripts/pxe-server/ /app/scripts/pxe-server/
 
-# Ensure the cache directory exists and is writable by the entrypoint
-RUN mkdir -p /app/scripts/pxe-server/.cache
+RUN mkdir -p /app/scripts/pxe-server/.cache && \
+    chmod +x /app/scripts/pxe-server/docker-entrypoint.sh \
+        /app/scripts/pxe-server/gen-password-hash.sh
 
 ENTRYPOINT ["/app/scripts/pxe-server/docker-entrypoint.sh"]
