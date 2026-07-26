@@ -23,6 +23,7 @@ services:
       GITHUB_USER: ${GITHUB_USER:-}
       HTTP_PORT: ${HTTP_PORT:-8080}
       SSH_PUBKEY_FILE: /app/ssh_key.pub
+      PASSWORD_HASH: ${PASSWORD_HASH:-}
     stdin_open: true
     tty: true
 
