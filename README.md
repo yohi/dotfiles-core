@@ -83,6 +83,15 @@ Orchestrator によって管理される全コンポーネントのリポジト�
 Docker は PXE サーバーの追加実行経路です。ホストへ `dnsmasq` などを導入せずに
 起動できますが、ネイティブの `bash scripts/pxe-server/run-pxe.sh` も引き続き利用できます。
 
+#### 設計の要点
+
+Docker 対応は既存の `pxe-serve.sh` を置き換えるのではなく、Dockerfile / エントリポイント / Compose で薄くラップする「薄いラッパー」方式です。これにより、ホストへの `dnsmasq` 導入なしに PXE サーバーを起動でき、既存のネイティブ実行経路も維持します。
+
+- **ホストネットワーク**: PXE に必要な DHCP/TFTP 通信のため `network_mode: host` を使用します。
+- **最小権限**: `privileged` は使用せず、`NET_BIND_SERVICE` と `NET_RAW` の capability のみを追加します。
+- **キャッシュ分離**: netboot 成果物と ISO は Docker named volume `pxe-cache` に保存し、ホストを汚しません。
+- **設定の秘匿**: パスワードハッシュを含む `.env` は `.gitignore` で Git 管理対象外としています。
+
 #### 設定と起動
 
 Docker Engine、Docker Compose v2、同一 LAN 上の操作 PC と対象 PC、および操作 PC の
@@ -126,6 +135,14 @@ ISO、`user-data`、`meta-data` の取得と無人インストール完了を確
 PXE の DHCP/TFTP 通信のため Docker Compose はホストネットワークを使用し、
 `NET_BIND_SERVICE` と `NET_RAW` のみを追加します。詳細な運用手順は
 [`scripts/pxe-server/README.md`](scripts/pxe-server/README.md) を参照してください。
+
+#### セキュリティとエラーハンドリング
+
+- `.env` にはパスワードハッシュが含まれるため、リポジトリにコミットしないでください（`.gitignore` で除外済み）。
+- SSH 公開鍵ファイルはコンテナに read-only でマウントされます。
+- `PASSWORD_HASH` を空にして非 TTY 環境で起動すると、即座に失敗します。対話入力を使う場合は TTY 端末から実行してください。
+- `PXE_IFACE` などの必須環境変数が不足している場合、または `SSH_PUBKEY_FILE` が存在しない場合も即座に失敗します。
+- PXE 配信は Ubuntu 無人インストールの仕様上平文 HTTP を使用します。これは Docker 化によっても変わりません。
 
 ## ⚡ Quick Start (Bootstrap)
 

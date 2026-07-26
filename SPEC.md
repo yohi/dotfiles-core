@@ -182,6 +182,32 @@ TTY でのみ既存の対話入力へ委譲し、非 TTY では失敗する。
 キャッシュ、テスト、文書、大容量成果物をイメージから除外する。ルート `/.env` は
 パスワードハッシュを含み得るため Git 管理対象外とする。
 
+#### 設計判断
+
+Docker 実行経路の設計において、以下の3方式を比較検討した。
+
+| アプローチ | 評価 | 採用 |
+| :--- | :--- | :--- |
+| 薄いラッパー方式 | 既存コードを最大限流用し、変更が最小。ネイティブ実行との両立も容易。 | ✅ 採用 |
+| 構成をイメージ埋め込み方式 | 柔軟性が低く、運用用途に合わない。 | ❌ 不採用 |
+| Supervisord + マルチサービス方式 | 不要な依存増加。既存 `cleanup` トラップと競合する。 | ❌ 不採用 |
+
+##### ネットワーク方式の選定理由
+
+ProxyDHCP は既存ルーターの DHCP に対して PXE 特有のオプションを追加で返し、TFTP はポート 69 をリッスンする。これらはホストのネットワークインターフェースに直接バインドする必要があるため、`macvlan` / `ipvlan` などの要追加設定方式は採用せず、`network_mode: host` を採用した。
+
+##### 権限方式の選定理由
+
+PR 検討段階では `NET_ADMIN` capability も候補に上がったが、実装検証の結果 `NET_BIND_SERVICE`（特権ポートバインド）と `NET_RAW`（RAW ソケット）のみで `dnsmasq` の ProxyDHCP / TFTP 動作が可能であったため、`NET_ADMIN` は除外した。`--privileged` は原則として使用しない。
+
+##### キャッシュ方式の選定理由
+
+netboot tarball と ISO のダウンロードを毎回行うと遅いが、ホストの `scripts/pxe-server/.cache/` 配下にファイルを残したくない。Docker named volume `pxe-cache` は `docker volume rm pxe-cache` 一発で削除でき、ホストを汚さない。
+
+##### ビルドコンテキストと ignore の選定理由
+
+`Dockerfile` は `scripts/pxe-server/` 配下に配置するが、ビルド時に `scripts/bootstrap.sh` をコピーする必要があるため、リポジトリルートをビルドコンテキストとする。そのため、ルート `.dockerignore` の代わりに `Dockerfile.dockerignore` を使用し、ルートの `.env` や PXE キャッシュ、テスト、文書を除外する。
+
 ### Data Flow (物理PC — PXE無人インストール経路・推奨)
 
 ```mermaid
