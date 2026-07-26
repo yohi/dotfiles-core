@@ -599,6 +599,12 @@ Expected: ビルドが成功する
 
 Run:
 ```bash
+# ダミーSSH公開鍵を用意（mktempで通常ファイルを作成して検証可能にする）
+DUMMY_KEY=$(mktemp -t ssh_key.pub.XXXXXX)
+cat > "$DUMMY_KEY" <<'EOF'
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDIhz2GK/XCUj4i6Q5yQJNL1MXMY0RxzPV2QrBqfHrDq fake-key
+EOF
+
 # モック用 pxe-serve.sh を用意してエントリポイントの引数変換を検証
 cat > /tmp/mock-pxe-serve.sh <<'EOF'
 #!/bin/bash
@@ -610,7 +616,8 @@ docker run --rm --net=host \
   --cap-add=NET_BIND_SERVICE \
   --cap-add=NET_RAW \
   -v pxe-cache:/app/scripts/pxe-server/.cache \
-  -v /dev/null:/app/ssh_key.pub:ro \
+  -v "$DUMMY_KEY:/app/ssh_key.pub:ro \
+
   -v /tmp/mock-pxe-serve.sh:/app/scripts/pxe-server/pxe-serve.sh:ro \
   -e PXE_IFACE=eth0 \
   -e PXE_SUBNET=192.168.1.0 \
@@ -623,7 +630,7 @@ docker run --rm --net=host \
   dotfiles-pxe-server
 ```
 
-（注: このテストは `docker-entrypoint.sh` が環境変数から構築した固定の引数をモック `pxe-serve.sh` に渡す動作を検証する。`docker run` への追加 CLI 引数を `pxe-serve.sh` に転送する前提はない。）
+（注: このテストは `docker-entrypoint.sh` が環境変数から構築した固定の引数をモック `pxe-serve.sh` に渡す動作を検証する。`/dev/null` ではなく `mktemp` で作成した通常ファイルをマウントすることで、`[[ -f "${SSH_PUBKEY_FILE}" ]]` のチェックを通過し、`--ssh-key-path` 引数の生成も含めて検証可能にしている。`docker run` への追加 CLI 引数を `pxe-serve.sh` に転送する前提はない。）
 
 - [ ] **Step 4: 実際のネットワーク環境での手動PXEブートテスト**
 
