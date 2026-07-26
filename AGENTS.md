@@ -13,7 +13,7 @@ environment: it clones component repos, resolves secrets, links dotfiles, and de
 component-specific configuration to each component's `Makefile`.
 
 Provisioning a brand-new Ubuntu machine (physical PC / VPS) is a separate flow;
-see `ansible/README.md`.
+see `docs/ansible.md`.
 
 ## How
 
@@ -55,5 +55,6 @@ or CI; `opencode.jsonc` defines the authoritative exceptions.
 | `docs/agent/SHELL_CONVENTIONS.md` | Shell script / Makefile authoring |
 | `docs/agent/COMMON_TASKS.md` | Adding components, status checks |
 | `docs/agent/PROJECT_CONVENTIONS.md` | Project conventions and security |
-| `ansible/README.md` | New-machine Ubuntu bootstrap |
-| `scripts/workers/README.md` | Cloudflare Workers script distribution |
+| `docs/ansible.md` | New-machine Ubuntu bootstrap |
+| `docs/pxe-server.md` | Docker-based PXE server setup |
+| `docs/cf-workers.md` | Cloudflare Workers script distribution |

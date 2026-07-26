@@ -56,10 +56,18 @@ docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v
 
 PXE の DHCP/TFTP 通信のため、Compose はホストネットワークを使用します。追加する capability は `NET_BIND_SERVICE` と `NET_RAW` のみであり、`privileged` は使用しません。SSH 公開鍵はコンテナに read-only でマウントされます。
 
-## 既存のネイティブ実行
+## ネイティブ実行（Docker を使わない直接実行）
 
-ホストに必要な依存関係を導入して直接実行する既存の手順は、そのまま利用できます。
+Docker を使用せず、ホスト OS に必要なツール（`dnsmasq`, `python3`, `curl` 等）を直接導入してシェルスクリプトを実行することも可能です。
 
 ```bash
-sudo ./scripts/pxe-server/pxe-serve.sh ...
+sudo ./scripts/pxe-server/pxe-serve.sh \
+  --iface eth0 \
+  --subnet 192.168.1.0 \
+  --netmask 255.255.255.0 \
+  --operator-ip 192.168.1.10 \
+  --version 24.04 \
+  --username y_ohi \
+  --hostname ubuntu-target \
+  --ssh-pubkey-file ~/.ssh/id_ed25519.pub
 ```
