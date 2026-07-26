@@ -1,8 +1,8 @@
 #!/bin/bash
 # scripts/pxe-server/fetch-netboot.sh
 #
-# Downloads and verifies the official Ubuntu Server netboot tarball and
-# live-server ISO for a given version, caching them under <cache_dir>/<version>/.
+# fetch_netboot() in scripts/pxe-server/pxe-serve.sh & docs/ansible.md
+# Downloads Ubuntu netboot artifacts for PXE booting.
 # Source-able for testing (main() runs only on direct execution).
 
 # Common curl options reused across this script: enforce HTTPS, follow redirects
