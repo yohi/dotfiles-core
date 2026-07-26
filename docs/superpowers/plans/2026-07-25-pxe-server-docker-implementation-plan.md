@@ -161,7 +161,7 @@ git commit -m "feat: PXEサーバー用 Dockerfile を追加"
 - Create: `scripts/pxe-server/docker-entrypoint.sh`
 
 **Interfaces:**
-- Consumes: 環境変数 `PXE_IFACE`, `PXE_SUBNET`, `PXE_NETMASK`, `OPERATOR_IP`, `VERSION`, `USERNAME`, `HOSTNAME`, `PASSWORD_HASH`, `GITHUB_USER`, `HTTP_PORT`, `SSH_PUBKEY_FILE`
+- Consumes: 環境変数 `PXE_IFACE`, `PXE_SUBNET`, `PXE_NETMASK`, `OPERATOR_IP`, `VERSION`, `USERNAME`, `TARGET_HOSTNAME`, `PASSWORD_HASH`, `GITHUB_USER`, `HTTP_PORT`, `SSH_PUBKEY_FILE`
 - Produces: `pxe-serve.sh` への引数、対話型パスワード入力の分岐
 
 - [ ] **Step 1: エントリポイントスクリプトを作成する**
@@ -189,10 +189,10 @@ PXE_NETMASK="${PXE_NETMASK:-}"
 OPERATOR_IP="${OPERATOR_IP:-}"
 VERSION="${VERSION:-}"
 USERNAME="${USERNAME:-}"
-HOSTNAME="${HOSTNAME:-}"
+TARGET_HOSTNAME="${TARGET_HOSTNAME:-}"
 SSH_PUBKEY_FILE="${SSH_PUBKEY_FILE:-/app/ssh_key.pub}"
 
-for var in PXE_IFACE PXE_SUBNET PXE_NETMASK OPERATOR_IP VERSION USERNAME HOSTNAME; do
+for var in PXE_IFACE PXE_SUBNET PXE_NETMASK OPERATOR_IP VERSION USERNAME TARGET_HOSTNAME; do
     if [[ -z "${!var}" ]]; then
         fail "${var} environment variable is required"
     fi
@@ -213,7 +213,7 @@ ARGS=(
     --operator-ip "${OPERATOR_IP}"
     --version "${VERSION}"
     --username "${USERNAME}"
-    --hostname "${HOSTNAME}"
+    --hostname "${TARGET_HOSTNAME}"
     --ssh-pubkey-file "${SSH_PUBKEY_FILE}"
     --http-port "${HTTP_PORT}"
 )
@@ -366,7 +366,7 @@ services:
       OPERATOR_IP: ${OPERATOR_IP}
       VERSION: ${VERSION:-24.04}
       USERNAME: ${USERNAME:-y_ohi}
-      HOSTNAME: ${HOSTNAME:-ubuntu-pxe}
+      TARGET_HOSTNAME: ${TARGET_HOSTNAME:-ubuntu-pxe}
       PASSWORD_HASH: ${PASSWORD_HASH}
       GITHUB_USER: ${GITHUB_USER}
       HTTP_PORT: ${HTTP_PORT:-8080}
@@ -428,7 +428,7 @@ VERSION=24.04
 USERNAME=y_ohi
 
 # Hostname of the installed machine
-HOSTNAME=ubuntu-pxe
+TARGET_HOSTNAME=ubuntu-pxe
 
 # Path to the operator's SSH public key on the host
 SSH_PUBKEY_FILE=~/.ssh/id_ed25519.pub
@@ -613,7 +613,7 @@ docker run --rm --net=host \
   -e OPERATOR_IP=192.168.1.10 \
   -e VERSION=24.04 \
   -e USERNAME=testuser \
-  -e HOSTNAME=test-pxe \
+  -e TARGET_HOSTNAME=test-pxe \
   -e PASSWORD_HASH='\$6\$fake\$fakehash' \
   dotfiles-pxe-server --help
 ```
