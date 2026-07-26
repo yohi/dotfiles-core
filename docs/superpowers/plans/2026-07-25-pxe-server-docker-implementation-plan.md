@@ -617,7 +617,6 @@ docker run --rm --net=host \
   --cap-add=NET_RAW \
   -v pxe-cache:/app/scripts/pxe-server/.cache \
   -v "$DUMMY_KEY:/app/ssh_key.pub:ro" \
-
   -v /tmp/mock-pxe-serve.sh:/app/scripts/pxe-server/pxe-serve.sh:ro \
   -e PXE_IFACE=eth0 \
   -e PXE_SUBNET=192.168.1.0 \
