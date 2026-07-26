@@ -60,7 +60,6 @@ PXEブートはDHCP / TFTPを必要とするため、Dockerでは **host ネッ�
 ### 必要な capabilities
 
 - `NET_BIND_SERVICE`: ポート69(TFTP)などの特権ポートバインド
-- `NET_ADMIN`: DHCP / TFTP 関連のネットワーク設定
 - `NET_RAW`: 一部のDHCP操作でRAWソケットが必要な場合がある
 
 ## キャッシュ設計
@@ -151,7 +150,6 @@ services:
     network_mode: host
     cap_add:
       - NET_BIND_SERVICE
-      - NET_ADMIN
       - NET_RAW
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
@@ -201,7 +199,7 @@ PASSWORD_HASH=
 
 ### 事前生成
 
-`gen-password-hash.sh` をホストで実行し、生成されたハッシュを `.env` に貼り付ける。
+生成されたハッシュを `.env` の `PASSWORD_HASH` に貼り付ける。ハッシュ内の `$` がシェル展開されないよう、値を単一引用符 `'` で囲んで設定すること。
 
 ```bash
 ./scripts/pxe-server/gen-password-hash.sh
@@ -216,14 +214,14 @@ PASSWORD_HASH=
 ```bash
 cp scripts/pxe-server/compose.env.example .env
 # .env を編集
-docker compose -f scripts/pxe-server/compose.yaml up --build
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 ```
 
 ### 停止
 
 ```bash
 # 別端末から
-docker compose -f scripts/pxe-server/compose.yaml down
+docker compose -f scripts/pxe-server/compose.yaml down -v
 ```
 
 `pxe-serve.sh` の `trap cleanup` が SIGTERM を受け取って、dnsmasq と HTTPサーバーを停止し、作業ディレクトリを削除する。

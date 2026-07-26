@@ -12,7 +12,7 @@
 
 - ベースイメージ: `ubuntu:24.04`
 - ネットワークモード: `--net=host`
-- capabilities: `NET_BIND_SERVICE`, `NET_ADMIN`, `NET_RAW`
+- capabilities: `NET_BIND_SERVICE`, `NET_RAW`
 - キャッシュ: Docker named volume `pxe-cache`
 - 既存の `pxe-serve.sh`, `render-autoinstall.sh`, `fetch-netboot.sh`, `run-pxe.sh` は原則変更しない
 - `.env` は `.gitignore` に追加してコミット対象外とする
@@ -354,7 +354,6 @@ services:
     network_mode: host
     cap_add:
       - NET_BIND_SERVICE
-      - NET_ADMIN
       - NET_RAW
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
@@ -442,6 +441,7 @@ HTTP_PORT=8080
 # Pre-generated password hash for the new user.
 # Generate with: ./scripts/pxe-server/gen-password-hash.sh
 # Leave empty to be prompted for a password on container startup (requires tty).
+# 例: PASSWORD_HASH='$6$rounds=5000$...'
 PASSWORD_HASH=
 ```
 
@@ -522,10 +522,10 @@ cp scripts/pxe-server/compose.env.example .env
 # 生成されたハッシュを .env の PASSWORD_HASH に貼り付ける
 
 # 4. 起動
-docker compose -f scripts/pxe-server/compose.yaml up --build
+docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 
 # 5. 別端末から停止
-docker compose -f scripts/pxe-server/compose.yaml down
+docker compose -f scripts/pxe-server/compose.yaml down -v
 ```
 
 ## ネットワーク
@@ -537,7 +537,6 @@ docker compose -f scripts/pxe-server/compose.yaml down
 以下の capabilities を最小限に付与する。
 
 - `NET_BIND_SERVICE`
-- `NET_ADMIN`
 - `NET_RAW`
 
 ## キャッシュ
@@ -545,7 +544,7 @@ docker compose -f scripts/pxe-server/compose.yaml down
 netboot tarball と ISO は Docker named volume `pxe-cache` に保存される。不要になった場合は以下で削除する。
 
 ```bash
-docker volume rm dotfiles-core_pxe-cache
+docker compose -f scripts/pxe-server/compose.yaml down -v
 ```
 
 ## パスワードの設定
@@ -558,7 +557,6 @@ docker volume rm dotfiles-core_pxe-cache
 
 ```bash
 sudo ./scripts/pxe-server/pxe-serve.sh ...
-```
 ```
 
 - [ ] **Step 2: Commit**
@@ -601,12 +599,19 @@ Expected: ビルドが成功する
 
 Run:
 ```bash
+# モック用 pxe-serve.sh を用意してエントリポイントの引数変換を検証
+cat > /tmp/mock-pxe-serve.sh <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*"
+EOF
+chmod +x /tmp/mock-pxe-serve.sh
+
 docker run --rm --net=host \
   --cap-add=NET_BIND_SERVICE \
-  --cap-add=NET_ADMIN \
   --cap-add=NET_RAW \
   -v pxe-cache:/app/scripts/pxe-server/.cache \
-  -v ~/.ssh/id_ed25519.pub:/app/ssh_key.pub:ro \
+  -v /dev/null:/app/ssh_key.pub:ro \
+  -v /tmp/mock-pxe-serve.sh:/app/scripts/pxe-server/pxe-serve.sh:ro \
   -e PXE_IFACE=eth0 \
   -e PXE_SUBNET=192.168.1.0 \
   -e PXE_NETMASK=255.255.255.0 \
@@ -614,11 +619,11 @@ docker run --rm --net=host \
   -e VERSION=24.04 \
   -e USERNAME=testuser \
   -e TARGET_HOSTNAME=test-pxe \
-  -e PASSWORD_HASH='\$6\$fake\$fakehash' \
-  dotfiles-pxe-server --help
+  -e PASSWORD_HASH='$6$fake$fakehash' \
+  dotfiles-pxe-server
 ```
 
-（注: 実際の `--help` 対応は `pxe-serve.sh` に存在しないため、エントリポイントの動作確認は `compose.yaml` 経由の起動テストで代替する。）
+（注: このテストは `docker-entrypoint.sh` が環境変数から構築した固定の引数をモック `pxe-serve.sh` に渡す動作を検証する。`docker run` への追加 CLI 引数を `pxe-serve.sh` に転送する前提はない。）
 
 - [ ] **Step 4: 実際のネットワーク環境での手動PXEブートテスト**
 
