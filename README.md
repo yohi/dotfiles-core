@@ -118,6 +118,13 @@ docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
 ままにすると起動は失敗します。必須環境変数の不足や `SSH_PUBKEY_FILE` の不在も即時
 エラーになります。
 
+同じ Docker ホスト上で複数のチェックアウトを並行運用する場合は、`.env` の
+`COMPOSE_PROJECT_NAME` に固有の名前を設定してください。未設定の場合、イメージタグ
+とキャッシュボリューム名が固定値となり、別チェックアウト間で上書き・競合が発生する
+可能性があります。
+ままにすると起動は失敗します。必須環境変数の不足や `SSH_PUBKEY_FILE` の不在も即時
+エラーになります。
+
 #### 停止と受入確認
 
 通常停止では netboot 成果物と ISO を保持する named volume `pxe-cache` を残します。
@@ -143,6 +150,7 @@ PXE の DHCP/TFTP 通信のため Docker Compose はホストネットワーク�
 - `PASSWORD_HASH` を空にして非 TTY 環境で起動すると、即座に失敗します。対話入力を使う場合は TTY 端末から実行してください。
 - `PXE_IFACE` などの必須環境変数が不足している場合、または `SSH_PUBKEY_FILE` が存在しない場合も即座に失敗します。
 - PXE 配信は Ubuntu 無人インストールの仕様上平文 HTTP を使用します。これは Docker 化によっても変わりません。
+- 同じ Docker ホスト上で複数のチェックアウトを並行運用する場合は、`.env` の `COMPOSE_PROJECT_NAME` に固有の名前を設定してください。未設定の場合、イメージタグとキャッシュボリューム名が固定値となり、別チェックアウト間で上書き・競合が発生する可能性があります。
 
 ## ⚡ Quick Start (Bootstrap)
 

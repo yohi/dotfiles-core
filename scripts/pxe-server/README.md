@@ -17,6 +17,7 @@ Ubuntu Server の無人インストール用 PXE サーバーを Docker コン�
    ```
 
 2. `.env` の `PXE_IFACE`、`PXE_SUBNET`、`PXE_NETMASK`、`OPERATOR_IP`、`SSH_PUBKEY_FILE` を操作環境に合わせて設定します。
+   同じ Docker ホスト上で複数のチェックアウトを並行運用する場合は、`COMPOSE_PROJECT_NAME` に固有の名前を設定してください（キャッシュ・イメージの競合を回避します）。
 
 3. 非対話起動では、パスワードハッシュを生成して `.env` の `PASSWORD_HASH` に設定します。`$` を含むハッシュをそのまま保持するため、値は単一引用符で囲みます。
 
@@ -39,7 +40,7 @@ Ubuntu Server の無人インストール用 PXE サーバーを Docker コン�
 
 ## 停止とキャッシュ
 
-通常停止では named volume `pxe-cache` を残し、次回の netboot 成果物と ISO の再利用を可能にします。
+通常停止では named volume `pxe-cache${COMPOSE_PROJECT_NAME:+-${COMPOSE_PROJECT_NAME}}` を残し、次回の netboot 成果物と ISO の再利用を可能にします。
 
 ```bash
 docker compose -f scripts/pxe-server/compose.yaml --env-file .env down
