@@ -3,6 +3,10 @@
 .github
 .gitignore
 
+# Secrets / local environment (must not be sent to Docker daemon)
+.env
+*.env
+
 # Editor / IDE
 .vscode
 .idea
@@ -16,7 +20,6 @@ tests
 scripts/pxe-server/.cache
 
 # Documentation not needed inside image
-README.md
 docs
 
 # Large / non-runtime files
