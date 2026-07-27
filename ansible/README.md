@@ -65,7 +65,7 @@ HEADER_FILE="$(mktemp)"
 trap 'rm -f "${SCRIPT_FILE}" "${HEADER_FILE}"' EXIT
 
 curl -fsSL -D "${HEADER_FILE}" -o "${SCRIPT_FILE}" \
-  https://setup.yourdomain.com/install.sh
+  https://install.y-ohi.com/install.sh
 EXPECTED_HASH="$(
   awk -F ': ' '
     tolower($1) == "x-script-sha256" {
