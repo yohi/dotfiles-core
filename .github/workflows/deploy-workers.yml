@@ -23,7 +23,10 @@ jobs:
           cache-dependency-path: 'scripts/workers/package-lock.json'
 
       - name: Install dependencies
-        run: npm --prefix scripts/workers ci
+        run: npm --prefix scripts/workers ci --ignore-scripts
+
+      - name: Prepare workerd binary
+        run: npm --prefix scripts/workers rebuild workerd
 
       - name: Run Tests
         run: npm --prefix scripts/workers test
