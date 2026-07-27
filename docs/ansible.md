@@ -48,8 +48,7 @@ ansible-playbook setup.yml -i hosts.ini
 4. **GitHub への公開鍵登録**: `github_token` が指定されている場合は GitHub API を経由して自動登録します。指定がない場合は、公開鍵の中身を表示して手動登録を促します。
 5. **リポジトリのクローン**: GitHub上の `git@github.com:yohi/dotfiles-core.git` をターゲット上の `/home/y_ohi/dotfiles` にクローンします。
 6. **ファイアウォール（UFW）の設定**: UFWが有効な場合、新しい SSH ポート（`5310`）へのアクセスを許可します。
-7. **SSH 設定の変更**: `/etc/ssh/sshd_config` を編集し、以下の設定を適用して SSH デーモンを再起動します。
-   - ポート番号を `5310` に変更
+7. **SSH 設定の変更**: `ssh.socket` のオーバーライド設定（`/etc/systemd/system/ssh.socket.d/override.conf`）を作成してポート番号（デフォルト: `5310`）を変更し、`/etc/ssh/sshd_config` に以下の設定を適用します。また、常時起動サービス（`ssh.service`）を無効化し、`ssh.socket` を有効化して再起動します。
    - root ユーザーでの直接ログインを禁止 (`PermitRootLogin no`)
    - パスワード認証を禁止 (`PasswordAuthentication no`)
 
