@@ -32,6 +32,26 @@ Ubuntu Server の無人インストール用 PXE サーバーを Docker コン�
    docker compose -f scripts/pxe-server/compose.yaml --env-file .env up --build
    ```
 
+### Rootless Docker環境での注意点と特権起動
+
+Rootless Docker（非特権ユーザー権限のDocker）環境下では、セキュリティ制限によりコンテナからホストの物理ネットワークインターフェース（`PXE_IFACE`）や物理IP（`OPERATOR_IP`）へのバインドができず、`dnsmasq: unknown interface` などのエラーで起動に失敗します。
+
+この場合は、システム全体の特権Dockerデーモン（`/var/run/docker.sock`）を利用して起動してください。
+
+**特権Dockerでの起動コマンド:**
+```bash
+sudo DOCKER_HOST=unix:///var/run/docker.sock HOME=$HOME docker compose -f scripts/pxe-server/compose.yaml --env-file .env up -d --build
+```
+※ `sudo` を使用すると環境変数 `HOME` が `/root` に切り替わり、`.env` 内の `SSH_PUBKEY_FILE`（例: `${HOME}/.ssh/id_ed25519.pub`）が正しく読み込めなくなるため、明示的に `HOME=$HOME` を指定するか絶対パスで記述してください。
+※ `docker compose` プラグインがユーザーのローカル環境（Linuxbrew等）にのみインストールされている場合は、`docker-compose` コマンドへの絶対パス（例: `/home/linuxbrew/.linuxbrew/bin/docker-compose`）を直接指定して実行してください。
+
+### コンテナの自動再起動ポリシー (`PXE_RESTART_POLICY`)
+
+特定のPCでPXEサーバーを常時稼働させたい場合、`.env` に `PXE_RESTART_POLICY=always` を指定することで、ホストOS再起動時などにコンテナを自動起動させることができます（デフォルトは `no` です）。
+
+* **注意**: Rootless Docker環境下で `always` を設定すると、前述のネットワークバインドエラーにより無限クラッシュ・再起動ループに陥るため、必ず特権Dockerで動作させる環境でのみ有効にしてください。
+* **物理アダプタの接続状態**: USB有線LANアダプタなどを使用している場合、ホスト起動時にアダプタが抜けていると一時的にエラーでコンテナが落ちますが、アダプタが挿入された後の自動再起動のタイミングで自動復帰します。
+
 ## 手動 PXE テスト
 
 1. 操作 PC と対象 PC が同じ LAN に接続されていることを確認します。
