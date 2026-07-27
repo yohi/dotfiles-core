@@ -107,6 +107,10 @@
         new_ssh_port: "{{ new_ssh_port }}"
 
   handlers:
+    - name: Apply Netplan
+      ansible.builtin.command: netplan apply
+      failed_when: false
+
     - name: Restart SSH
       ansible.builtin.service:
         name: "{{ item }}"
