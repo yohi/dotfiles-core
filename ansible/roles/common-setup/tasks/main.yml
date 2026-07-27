@@ -31,10 +31,10 @@
     group: root
     mode: "0600"
   become: true
-  notify: Apply Netplan
 
-- name: Flush handlers to apply Netplan immediately
-  ansible.builtin.meta: flush_handlers
+- name: Apply Netplan
+  ansible.builtin.command: netplan apply
+  become: true
 
 - name: Clone dotfiles-core repository
   ansible.builtin.git:
