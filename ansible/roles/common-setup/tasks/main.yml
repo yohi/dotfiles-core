@@ -33,6 +33,8 @@
   become: true
   notify: Apply Netplan
 
+- name: Flush handlers to apply Netplan immediately
+  ansible.builtin.meta: flush_handlers
 
 - name: Clone dotfiles-core repository
   ansible.builtin.git:
