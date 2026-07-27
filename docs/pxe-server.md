@@ -54,7 +54,7 @@ docker compose -f scripts/pxe-server/compose.yaml --env-file .env down -v
 
 ## ネットワークと権限
 
-PXE の DHCP/TFTP 通信のため、Compose はホストネットワークを使用します。追加する capability は `NET_BIND_SERVICE` と `NET_RAW` のみであり、`privileged` は使用しません。SSH 公開鍵はコンテナに read-only でマウントされます。
+PXE の DHCP/TFTP 通信のため、Compose はホストネットワークを使用します。追加する capability は `NET_BIND_SERVICE`、`NET_RAW`、`NET_ADMIN` であり、`privileged` は使用しません。SSH 公開鍵はコンテナに read-only でマウントされます。
 
 ## ネイティブ実行（Docker を使わない直接実行）
 

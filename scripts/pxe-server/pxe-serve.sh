@@ -122,6 +122,7 @@ main() {
     initrd_path="$(printf '%s\n' "${boot_files}" | sed -n 's/^INITRD=//p')"
 
     WORK_DIR="$(mktemp -d)"
+    chmod 755 "${WORK_DIR}"
     local tftp_root="${WORK_DIR}/tftp"
     local http_root="${WORK_DIR}/http"
     mkdir -p "${tftp_root}/pxelinux.cfg" "${tftp_root}/grub" "${http_root}/autoinstall"
@@ -137,6 +138,8 @@ main() {
     # Copy the ISO from the exact path fetch_netboot resolved (dynamic filename),
     # not a hardcoded ubuntu-${version}-... path.
     cp "${iso_path}" "${http_root}/"
+
+    chmod -R 755 "${WORK_DIR}"
 
     echo "==> Rendering user-data (autoinstall config)..."
     render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${http_root}/autoinstall"

@@ -58,10 +58,13 @@ discover_boot_files() {
     fi
 
     kernel="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'vmlinuz*' -print -quit)"
+    if [ -z "${kernel}" ]; then
+        kernel="$(find "${amd64_dir}" -maxdepth 1 -type f -name 'linux' -print -quit)"
+    fi
     initrd="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'initrd*' -print -quit)"
 
     if [ -z "${kernel}" ] || [ ! -f "${kernel}" ]; then
-        echo "ERROR: no vmlinuz* file found under ${amd64_dir}" >&2
+        echo "ERROR: no vmlinuz* or linux file found under ${amd64_dir}" >&2
         return 1
     fi
     if [ -z "${initrd}" ] || [ ! -f "${initrd}" ]; then

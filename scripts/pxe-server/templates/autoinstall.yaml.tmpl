@@ -1,6 +1,11 @@
 #cloud-config
 autoinstall:
   version: 1
+  interactive-sections:
+    - storage
+  apt:
+    fallback: offline-install
+    geoip: false
   locale: en_US.UTF-8
   keyboard:
     layout: us
