@@ -44,25 +44,55 @@
   register: ssh_socket_status
   failed_when: false
 
-- name: Disable ssh.socket and enable ssh.service
-  ansible.builtin.systemd:
-    name: "{{ item.name }}"
-    enabled: "{{ item.enabled }}"
-    state: "{{ item.state }}"
-  loop:
-    - { name: "ssh.socket", enabled: false, state: "stopped" }
-    - { name: "ssh", enabled: true, state: "started" }
-  when:
-    - ssh_socket_status.status is defined
-    - ssh_socket_status.status.ActiveState is defined
-    - ssh_socket_status.status.ActiveState == 'active'
+- name: Ensure ssh.socket.d directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/ssh.socket.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
 
-- name: Configure SSH Daemon port
+- name: Configure ssh.socket port override
+  ansible.builtin.copy:
+    content: |
+      [Socket]
+      ListenStream=
+      ListenStream={{ new_ssh_port }}
+      ListenStream=0.0.0.0:{{ new_ssh_port }}
+    dest: /etc/systemd/system/ssh.socket.d/override.conf
+    owner: root
+    group: root
+    mode: '0644'
+  register: ssh_socket_override
+
+- name: Force systemd daemon-reload and reset-failed for ssh.socket
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: ssh_socket_override.changed
+
+- name: Reset ssh.socket and ssh.service failed states
+  ansible.builtin.command: systemctl reset-failed ssh.service ssh.socket
+  changed_when: false
+  failed_when: false
+  when: ssh_socket_override.changed
+
+- name: Ensure ssh.service is stopped and disabled
+  ansible.builtin.systemd:
+    name: ssh
+    enabled: false
+    state: stopped
+
+- name: Ensure ssh.socket is enabled and started
+  ansible.builtin.systemd:
+    name: ssh.socket
+    enabled: true
+    state: started
+
+- name: Remove custom Port from sshd_config (socket activation handles port)
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
-    regexp: '^#?Port\s'
-    line: "Port {{ new_ssh_port }}"
-    state: present
+    regexp: '^Port\s'
+    state: absent
   notify: Restart SSH
 
 - name: Disable SSH Root Login
@@ -106,16 +136,12 @@
 - name: Assert the SSH hardening is reflected in the effective configuration
   ansible.builtin.assert:
     that:
-      - '("port " ~ new_ssh_port) in sshd_effective_config.stdout_lines'
       - '"permitrootlogin no" in sshd_effective_config.stdout_lines'
       - '"passwordauthentication no" in sshd_effective_config.stdout_lines'
     fail_msg: >-
       SSH の実効設定 (sshd -T) が要求されたハードニング設定と一致しません。
-      期待値は 'port {{ new_ssh_port }}' / 'permitrootlogin no' /
-      'passwordauthentication no' です。/etc/ssh/sshd_config.d/*.conf の
-      ドロップイン (例: cloud-init の 'PasswordAuthentication yes') が
-      /etc/ssh/sshd_config の設定を上書きしていないか確認してください。
+      期待値は 'permitrootlogin no' / 'passwordauthentication no' です。
+      /etc/ssh/sshd_config.d/*.conf のドロップインが上書きしていないか確認してください。
     success_msg: >-
       SSH の実効設定 (sshd -T) が要求されたハードニング設定
-      (port {{ new_ssh_port }}, permitrootlogin no, passwordauthentication no)
-      と一致することを確認しました。
+      (permitrootlogin no, passwordauthentication no) と一致することを確認しました。
