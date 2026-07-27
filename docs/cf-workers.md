@@ -1,6 +1,6 @@
 # dotfiles-bootstrap Worker
 
-`scripts/bootstrap.sh` を GitHub raw から取得し、SHA-256 整合性ヘッダ (`X-Script-SHA256`) を付与して HTTPS 配信する Cloudflare Worker。`GET /` および `GET /install.sh` を受理する。
+`scripts/bootstrap.sh` を GitHub raw から取得し、SHA-256 整合性ヘッダ (`X-Script-SHA256`) を付与して HTTPS 配信する Cloudflare Worker。`GET /install.sh` のみ受理する。
 
 ## テスト
 

@@ -2,8 +2,7 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const allowedPaths = ["/", "/install.sh"];
-    if (request.method !== "GET" || !allowedPaths.includes(url.pathname)) {
+    if (request.method !== "GET" || url.pathname !== "/install.sh") {
       return new Response("Not Found", { status: 404 });
     }
 

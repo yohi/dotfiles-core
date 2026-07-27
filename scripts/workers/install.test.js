@@ -36,28 +36,13 @@ function createWorker(status = 200, body = fixtureScript) {
 test("returns 404 for unknown paths", async (t) => {
   const mf = createWorker();
   t.after(() => mf.dispose());
-  const res = await mf.dispatchFetch("https://example.com/unknown");
+  const res = await mf.dispatchFetch("https://example.com/");
   assert.strictEqual(res.status, 404);
 });
 
-test("returns 200 with sha256 header for root path /", async (t) => {
+test("returns 200 with sha256 header for install.sh", async (t) => {
   const mf = createWorker();
   t.after(() => mf.dispose());
-  
-  const res = await mf.dispatchFetch("https://example.com/");
-  assert.strictEqual(res.status, 200);
-  assert.strictEqual(
-    res.headers.get("X-Script-SHA256"),
-    "8fb9f701c258969600e289e52cc070e09d52645f0d0463bf2559140d5ad6ee63"
-  );
-  const body = await res.text();
-  assert.strictEqual(body, fixtureScript);
-});
-
-test("returns 200 with sha256 header for /install.sh", async (t) => {
-  const mf = createWorker();
-  t.after(() => mf.dispose());
-
   const res = await mf.dispatchFetch("https://example.com/install.sh");
   assert.strictEqual(res.status, 200);
   assert.strictEqual(
