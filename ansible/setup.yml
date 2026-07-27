@@ -3,6 +3,8 @@
 - name: VPS Initial Server Setup
   hosts: servers
   become: true
+  vars:
+    ansible_become_password_prompt: "Password:"
   vars_files:
     - vars.yml
 
