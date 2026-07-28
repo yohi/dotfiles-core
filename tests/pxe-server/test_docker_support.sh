@@ -135,7 +135,7 @@ with open(sys.argv[1], encoding="utf-8") as source:
 
 service = document["services"]["pxe-server"]
 assert service["network_mode"] == "host"
-assert service["cap_add"] == ["NET_BIND_SERVICE", "NET_RAW"]
+assert service["cap_add"] == ["NET_BIND_SERVICE", "NET_RAW", "NET_ADMIN"]
 assert "privileged" not in service
 assert service["stdin_open"] is True
 assert service["tty"] is True
