@@ -122,10 +122,11 @@ main() {
     initrd_path="$(printf '%s\n' "${boot_files}" | sed -n 's/^INITRD=//p')"
 
     WORK_DIR="$(mktemp -d)"
-    chmod 755 "${WORK_DIR}"
+    chmod 700 "${WORK_DIR}"
     local tftp_root="${WORK_DIR}/tftp"
     local http_root="${WORK_DIR}/http"
     mkdir -p "${tftp_root}/pxelinux.cfg" "${tftp_root}/grub" "${http_root}/autoinstall"
+    chmod 755 "${tftp_root}" "${tftp_root}/pxelinux.cfg" "${tftp_root}/grub" "${http_root}" "${http_root}/autoinstall"
 
     echo "==> Staging TFTP boot files..."
     cp "${kernel_path}" "${tftp_root}/vmlinuz"
@@ -139,10 +140,12 @@ main() {
     # not a hardcoded ubuntu-${version}-... path.
     cp "${iso_path}" "${http_root}/"
 
-    chmod -R 755 "${WORK_DIR}"
+    chmod -R 644 "${tftp_root}"/* "${http_root}"/* 2>/dev/null || true
+    find "${tftp_root}" "${http_root}" -type d -exec chmod 755 {} +
 
     echo "==> Rendering user-data (autoinstall config)..."
     render_autoinstall "${username}" "${hostname}" "${ssh_pubkey_file}" "${github_user}" "${password_hash}" "${http_root}/autoinstall"
+    chmod 600 "${http_root}/autoinstall/user-data"
 
     echo "==> Rendering boot menu configs..."
     AI_VERSION="${version}" OPERATOR_IP="${operator_ip}" HTTP_PORT="${http_port}" AI_ISO_FILENAME="${iso_filename}" \
