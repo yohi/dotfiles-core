@@ -52,7 +52,7 @@ discover_boot_files() {
     local amd64_dir="${extract_dir}/amd64"
     local kernel initrd
 
-    if [ ! -d "${amd64_dir}" ]; then
+    if [[ ! -d "${amd64_dir}" ]]; then
         echo "ERROR: expected amd64/ directory not found under ${extract_dir}" >&2
         return 1
     fi
@@ -63,11 +63,11 @@ discover_boot_files() {
     fi
     initrd="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'initrd*' -print -quit)"
 
-    if [ -z "${kernel}" ] || [ ! -f "${kernel}" ]; then
+    if [[ -z "${kernel}" ]] || [[ ! -f "${kernel}" ]]; then
         echo "ERROR: no vmlinuz* or linux file found under ${amd64_dir}" >&2
         return 1
     fi
-    if [ -z "${initrd}" ] || [ ! -f "${initrd}" ]; then
+    if [[ -z "${initrd}" ]] || [[ ! -f "${initrd}" ]]; then
         echo "ERROR: no initrd* file found under ${amd64_dir}" >&2
         return 1
     fi
@@ -153,7 +153,7 @@ fetch_netboot() {
     iso_list="$(echo "${index_html}" | grep -oP 'ubuntu-[0-9.]+(-live-server-amd64\.iso)' | sort -rV)"
     iso_name="$(echo "${iso_list}" | head -1)"
 
-    if [ -z "${iso_name}" ]; then
+    if [[ -z "${iso_name}" ]]; then
         echo "ERROR: Could not find live-server ISO in ${base_url}/" >&2
         return 1
     fi
@@ -174,7 +174,7 @@ fetch_netboot() {
     tarball_dest="${version_dir}/${tarball_name}"
 
 
-    if [ -f "${iso_dest}" ]; then
+    if [[ -f "${iso_dest}" ]]; then
         if verify_sha256 "${iso_dest}" "${version_dir}/SHA256SUMS" >/dev/null 2>&1; then
             echo "==> ${iso_name} already cached and verified, skipping download." >&2
         else
@@ -193,7 +193,7 @@ fetch_netboot() {
     # Structural integrity is verified via tar -tzf (catches corruption/truncation, not tampering).
     # This is an accepted, documented limitation -- analogous to ansible/README.md's Cloudflare Workers
     # script-integrity check scoped to transport-corruption detection only.
-    if [ -f "${tarball_dest}" ] && [ -f "${version_dir}/netboot-extracted/.extracted" ]; then
+    if [[ -f "${tarball_dest}" ]] && [[ -f "${version_dir}/netboot-extracted/.extracted" ]]; then
         echo "==> ${tarball_name} already cached and extracted, skipping download." >&2
     else
         echo "==> Downloading ${tarball_name}..." >&2

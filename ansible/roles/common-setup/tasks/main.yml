@@ -15,6 +15,27 @@
     update_cache: true
   become: true
 
+- name: Ensure Netplan enables DHCPv4 on all Ethernet interfaces
+  ansible.builtin.copy:
+    dest: /etc/netplan/99-custom-ethernet-dhcp.yaml
+    content: |
+      network:
+        version: 2
+        ethernets:
+          all-ethernets:
+            match:
+              name: "e*"
+            dhcp4: true
+            optional: true
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+
+- name: Apply Netplan
+  ansible.builtin.command: netplan apply
+  become: true
+
 - name: Clone dotfiles-core repository
   ansible.builtin.git:
     repo: "git@github.com:yohi/dotfiles-core.git"
