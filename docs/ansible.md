@@ -52,6 +52,10 @@ ansible-playbook setup.yml -i hosts.ini
    - root ユーザーでの直接ログインを禁止 (`PermitRootLogin no`)
    - パスワード認証を禁止 (`PasswordAuthentication no`)
 
+   変更後の接続確認および次回以降の Ansible 実行手順：
+   - 設定変更後の接続検証: `ssh -p <configured_ssh_port> <username>@<target_ip>`（例: `ssh -p 5310 y_ohi@192.168.1.100`）
+   - 今後の playbook 実行のため、必要に応じて `hosts.ini` の接続ポート（例: `ansible_port=<configured_ssh_port>`）をデフォルトの 22 から設定した SSH ポートに更新してください。
+
 ## セットアップフロー
 
 ### 物理 PC のセットアップ（PXE 無人インストール、推奨）
