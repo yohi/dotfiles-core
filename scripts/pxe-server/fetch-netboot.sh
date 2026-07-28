@@ -58,7 +58,7 @@ discover_boot_files() {
     fi
 
     kernel="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'vmlinuz*' -print -quit)"
-    if [ -z "${kernel}" ]; then
+    if [[ -z "${kernel}" ]]; then
         kernel="$(find "${amd64_dir}" -maxdepth 1 -type f -name 'linux' -print -quit)"
     fi
     initrd="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'initrd*' -print -quit)"
