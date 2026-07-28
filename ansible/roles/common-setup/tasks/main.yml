@@ -71,7 +71,7 @@
     state: directory
     owner: root
     group: root
-    mode: '0755'
+    mode: '0750'
 
 - name: Configure ssh.socket port override
   ansible.builtin.copy:
@@ -83,7 +83,7 @@
     dest: /etc/systemd/system/ssh.socket.d/override.conf
     owner: root
     group: root
-    mode: '0644'
+    mode: '0640'
   register: ssh_socket_override
 
 - name: Force systemd daemon-reload and reset-failed for ssh.socket
