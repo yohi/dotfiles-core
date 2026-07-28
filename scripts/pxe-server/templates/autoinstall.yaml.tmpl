@@ -1,6 +1,9 @@
 #cloud-config
 autoinstall:
   version: 1
+  apt:
+    fallback: offline-install
+    geoip: false
   locale: en_US.UTF-8
   keyboard:
     layout: us
@@ -18,4 +21,5 @@ ${AI_SSH_KEYS_YAML}
       name: lvm
   late-commands:
     - curtin in-target -- systemctl enable ssh
+    - curtin in-target -- sh -c 'echo "${AI_USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${AI_USERNAME} && chmod 0440 /etc/sudoers.d/${AI_USERNAME}'
     - curtin in-target -- touch /var/log/dotfiles-autoinstall-complete

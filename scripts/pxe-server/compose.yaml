@@ -5,9 +5,11 @@ services:
       dockerfile: scripts/pxe-server/Dockerfile
     image: dotfiles-pxe-server${COMPOSE_PROJECT_NAME:+-${COMPOSE_PROJECT_NAME}}
     network_mode: host
+    restart: ${PXE_RESTART_POLICY:-no}
     cap_add:
       - NET_BIND_SERVICE
       - NET_RAW
+      - NET_ADMIN
     volumes:
       - pxe-cache:/app/scripts/pxe-server/.cache
       - ${SSH_PUBKEY_FILE:?SSH_PUBKEY_FILE must be set}:/app/ssh_key.pub:ro
