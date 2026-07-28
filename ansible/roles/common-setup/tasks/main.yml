@@ -15,11 +15,19 @@
     update_cache: true
   become: true
 
+- name: Ensure default shell is present in /etc/shells
+  ansible.builtin.lineinfile:
+    path: /etc/shells
+    line: "{{ default_shell }}"
+    state: present
+  become: true
+
 - name: Set default shell for target user
   ansible.builtin.user:
     name: "{{ username }}"
     shell: "{{ default_shell }}"
   become: true
+
 
 
 - name: Ensure Netplan enables DHCPv4 on all Ethernet interfaces
