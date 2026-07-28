@@ -127,6 +127,17 @@ else
 fi
 rm -rf "${OUT_DIR2}"
 
+# ---- render_autoinstall: rejects invalid Unix username ---------------------
+
+OUT_DIR_INVALID_USER="$(mktemp -d)"
+echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKlJt9sRdyBoq3pxbaXGGRB58tZyLsO+Bgvc0zyRAOG/ operator@pc" > "${OUT_DIR_INVALID_USER}/operator.pub"
+if render_autoinstall 'user$(id)' "ubuntu-pxe" "${OUT_DIR_INVALID_USER}/operator.pub" "" '$6$fakehash$abcdefgh' "${OUT_DIR_INVALID_USER}" 2>/dev/null; then
+    fail "render_autoinstall rejects an invalid Unix username containing shell payload"
+else
+    pass "render_autoinstall rejects an invalid Unix username containing shell payload"
+fi
+rm -rf "${OUT_DIR_INVALID_USER}"
+
 # ---- build_ssh_keys_yaml: missing operator key file -------------------------
 
 if build_ssh_keys_yaml "/nonexistent/path.pub" "" >/dev/null 2>&1; then
