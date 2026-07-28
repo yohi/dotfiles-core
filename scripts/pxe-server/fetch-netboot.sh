@@ -52,7 +52,7 @@ discover_boot_files() {
     local amd64_dir="${extract_dir}/amd64"
     local kernel initrd
 
-    if [ ! -d "${amd64_dir}" ]; then
+    if [[ ! -d "${amd64_dir}" ]]; then
         echo "ERROR: expected amd64/ directory not found under ${extract_dir}" >&2
         return 1
     fi
@@ -60,11 +60,11 @@ discover_boot_files() {
     kernel="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'vmlinuz*' -print -quit)"
     initrd="$(find "${amd64_dir}" -maxdepth 1 -type f -iname 'initrd*' -print -quit)"
 
-    if [ -z "${kernel}" ] || [ ! -f "${kernel}" ]; then
+    if [[ -z "${kernel}" ]] || [[ ! -f "${kernel}" ]]; then
         echo "ERROR: no vmlinuz* file found under ${amd64_dir}" >&2
         return 1
     fi
-    if [ -z "${initrd}" ] || [ ! -f "${initrd}" ]; then
+    if [[ -z "${initrd}" ]] || [[ ! -f "${initrd}" ]]; then
         echo "ERROR: no initrd* file found under ${amd64_dir}" >&2
         return 1
     fi
