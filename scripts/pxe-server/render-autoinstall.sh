@@ -134,7 +134,7 @@ render_autoinstall() {
         return 1
     fi
 
-    if [[ ! "${username}" =~ ^[a-z_][a-z0-9_-]*\$?$ ]]; then
+    if [[ ! "${username}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
         echo "ERROR: invalid Unix username: '${username}'" >&2
         return 1
     fi
