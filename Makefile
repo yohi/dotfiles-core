@@ -66,13 +66,20 @@ define dispatch
 		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
-				skip_var="SKIP_$$(echo "$$component" | sed 's/dotfiles-//' | tr 'a-z-' 'A-Z_')"; \
+				skip_var=$$(./scripts/component-skip-var.sh "$$component"); \
 				skip_val=$$(eval echo "\$$$$skip_var"); \
 				if [ -z "$$skip_val" ] && [ -f .env ]; then \
-					skip_val=$$(grep -E "^$${skip_var}=" .env 2>/dev/null | cut -d= -f2 | tr -d '"\x27' || true); \
+					skip_val=$$(grep -E "^$${skip_var}=" .env 2>/dev/null | cut -d= -f2- | tr -d '"\x27' || true); \
 				fi; \
-				if [ "$$skip_val" = "1" ] || [ "$$skip_val" = "true" ] || { [ "$$component" = "dotfiles-gnome" ] && [ "$$SKIP_GUI" = "1" ]; }; then \
-					echo -e "  $(T_SKIP) $(H_YELLOW)$$component:$(H_NC) skipped ($${skip_var}=1)"; \
+				if [ "$$component" = "dotfiles-gnome" ] && [ -z "$$skip_val" ]; then \
+					skip_var="SKIP_GUI"; \
+					skip_val=$$(eval echo "\$$SKIP_GUI"); \
+					if [ -z "$$skip_val" ] && [ -f .env ]; then \
+						skip_val=$$(grep -E "^SKIP_GUI=" .env 2>/dev/null | cut -d= -f2- | tr -d '"\x27' || true); \
+					fi; \
+				fi; \
+				if [ "$$skip_val" = "1" ] || [ "$$skip_val" = "true" ]; then \
+					echo -e "  $(T_SKIP) $(H_YELLOW)$$component:$(H_NC) skipped ($${skip_var}=$${skip_val})"; \
 					continue; \
 				fi; \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \

@@ -14,6 +14,7 @@ H_BLUE="\033[34m"
 H_GREEN="\033[32m"
 H_YELLOW="\033[33m"
 H_CYAN="\033[36m"
+H_MAGENTA="\033[35m"
 H_NC="\033[0m"
 
 # コンポーネントの説明辞書
@@ -60,6 +61,8 @@ disabled_components=()
 # .env が存在しない場合は空ファイルを作成
 touch "$ENV_FILE"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 for comp in $components; do
     desc=$(get_description "$comp")
     
@@ -72,58 +75,27 @@ for comp in $components; do
     fi
 
     # 対話プロンプト
-    read -p "$(echo -e "${H_CYAN}• ${H_BOLD}${comp}${H_NC} (${desc}) [${default_prompt}]: ")" ans || ans=""
+    read -r -p "$(echo -e "${H_CYAN}• ${H_BOLD}${comp}${H_NC} (${desc}) [${default_prompt}]: ")" ans || ans=""
     
     if [ -z "$ans" ]; then
         ans="$default_val"
     fi
 
+    var_name="$("$SCRIPT_DIR/component-skip-var.sh" "$comp")"
     case "$ans" in
         [Nn]* )
             disabled_components+=("$comp")
             # .env の SKIP_<NAME> を更新
-            var_name="SKIP_$(echo "$comp" | sed 's/dotfiles-//' | tr 'a-z-' 'A-Z_')"
             # 既存の設定を削除して追加
             sed -i "/^${var_name}=/d" "$ENV_FILE"
             echo "${var_name}=1" >> "$ENV_FILE"
             ;;
         * )
             enabled_components+=("$comp")
-            var_name="SKIP_$(echo "$comp" | sed 's/dotfiles-//' | tr 'a-z-' 'A-Z_')"
             sed -i "/^${var_name}=/d" "$ENV_FILE"
             ;;
     esac
 done
-
-# 有効なコンポーネントのみを RESOLVED_YAML に反映
-python3 - "$RESOLVED_YAML" "${enabled_components[*]}" << 'EOF'
-import sys
-import re
-
-target_file = sys.argv[1]
-enabled = sys.argv[2].split()
-
-with open(target_file, 'r') as f:
-    lines = f.readlines()
-
-out = []
-current_repo = None
-include = True
-
-for line in lines:
-    if line.startswith('repositories:'):
-        out.append(line)
-        continue
-    m = re.match(r'^[ \t]+([a-zA-Z0-9_-]+):', line)
-    if m:
-        current_repo = m.group(1)
-        include = (current_repo in enabled)
-    if include:
-        out.append(line)
-
-with open(target_file, 'w') as f:
-    f.writelines(out)
-EOF
 
 echo -e "\n${H_GREEN}${H_BOLD}✔ コンポーネント選択が完了しました。${H_NC}"
 echo -e "${H_BLUE}  有効:${H_NC} ${enabled_components[*]:-なし}"
