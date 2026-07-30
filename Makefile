@@ -66,6 +66,22 @@ define dispatch
 		for dir in "$(COMPONENTS_DIR)"/dotfiles-system $$(find "$(COMPONENTS_DIR)" -maxdepth 1 -mindepth 1 -type d ! -name "dotfiles-system" 2>/dev/null | sort); do \
 			if [ -d "$$dir" ] && [ -f "$$dir/Makefile" ]; then \
 				component=$$(basename "$$dir"); \
+				skip_var=$$(./scripts/component-skip-var.sh "$$component"); \
+				skip_val=$$(eval echo "\$$$$skip_var"); \
+				if [ -z "$$skip_val" ] && [ -f .env ]; then \
+					skip_val=$$(grep -E "^$${skip_var}=" .env 2>/dev/null | cut -d= -f2- | tr -d '"\x27' || true); \
+				fi; \
+				if [ "$$component" = "dotfiles-gnome" ] && [ -z "$$skip_val" ]; then \
+					skip_var="SKIP_GUI"; \
+					skip_val=$$(eval echo "\$$SKIP_GUI"); \
+					if [ -z "$$skip_val" ] && [ -f .env ]; then \
+						skip_val=$$(grep -E "^SKIP_GUI=" .env 2>/dev/null | cut -d= -f2- | tr -d '"\x27' || true); \
+					fi; \
+				fi; \
+				if [ "$$skip_val" = "1" ] || [ "$$skip_val" = "true" ]; then \
+					echo -e "  $(T_SKIP) $(H_YELLOW)$$component:$(H_NC) skipped ($${skip_var}=$${skip_val})"; \
+					continue; \
+				fi; \
 				err_out=$$( ( cd "$$dir" && $(LOAD_ENV) && $(MAKE) -n $(1) ) 2>&1 >/dev/null ); \
 				ret=$$?; \
 				if [ $$ret -ne 0 ] && ! echo "$$err_out" | grep -iqe "No rule to make target" -e "を make するルールがありません"; then \
@@ -154,6 +170,7 @@ $(REPOS_YAML_RESOLVED): $(REPOS_YAML) ## リポジトリ設定ファイルのURL
 			echo -e "$(H_GREEN)    SSH connection successful (code $$ret).$(H_NC)"; \
 		fi; \
 	fi
+	@./scripts/select-components.sh $@
 
 _install-deps:
 	@if command -v apt-get >/dev/null 2>&1; then \
